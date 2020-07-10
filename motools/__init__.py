@@ -37,5 +37,8 @@ try:
     basemap_version = bm.__version__
     assert(basemap_version >= basemap_version_needed)
 except:
-    raise ImportError("Need basemap in a recent version: at least v {}, present is {}; this is not on Pypi any longer. Try with conda or ```sudo apt-get install -y python-mpltoolkits.basemap``` to install.".format(basemap_version_needed, basemap_version))
+    raise ImportError("Need basemap in a recent version: \
+                      at least v {}, present is {}; this is not on Pypi any longer. \
+                      Try with conda or ```sudo apt-get install -y python-mpltoolkits.basemap``` \
+                      to install.".format(basemap_version_needed, basemap_version))
 
