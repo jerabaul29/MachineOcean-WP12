@@ -4,6 +4,7 @@ import netCDF4 as nc4
 import numpy as np
 # import motools.config as moc
 from datetime import date
+import os
 
 
 def kyststasjoner_path(datetime_day, run_time, basepath=None):
@@ -63,6 +64,8 @@ def get_kyststasjoner_average_data(path_to_nc):
         All the output fields have a dimension 2. First index is time, second index is
         station.
     """
+    assert os.path.isfile(path_to_nc)
+
     nc_content = nc4.Dataset(path_to_nc, 'r')
 
     datafield_model = "totalwater"
