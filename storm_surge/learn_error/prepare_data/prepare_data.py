@@ -53,11 +53,12 @@ crrt_date = date_start
 while True:
     for crrt_day_entry in entries_per_day:
         # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
-        pass
-
         # there are some data / runs missing, corrupted, etc.
         try:
-            pass
+            # generate the predictor
+
+            # generate the label
+
 
         except:
             pass
