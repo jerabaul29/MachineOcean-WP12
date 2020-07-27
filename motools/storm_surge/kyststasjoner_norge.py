@@ -93,6 +93,6 @@ def get_kyststasjoner_average_data(path_to_nc):
     # water level at the measurement stations from model, tide effect subtracted, ensemble std
     nc_water_model_std = np.std(nc_water_model, axis=1)
 
-    return(nc_water_station_notide[:, 0, :],
-           nc_water_model_mean_notide[:, 0, :],
-           nc_water_model_std[:, 0, :])
+    return(np.squeeze(nc_water_station_notide[:, 0, :]),
+           np.squeeze(nc_water_model_mean_notide[:, 0, :]),
+           np.squeeze(nc_water_model_std[:, 0, :]))

@@ -14,12 +14,17 @@
 import json
 import datetime
 
+##################################################
+# load config information
+
+# TODO: FIXME, use the new get method
 with open("../../../config/config.json", 'r') as fh:
     config = json.load(fh)
 
 version = '1.0'
 
 lustre_root_path = config['config'][version]['path']['dataRoot']
+
 print("base path on lustre: {}".format(lustre_root_path))
 
 ##################################################
@@ -32,6 +37,9 @@ date_end = datetime.date(2017, 12, 15)
 number_of_days = (date_end - date_start).days
 number_of_entries = number_of_days * 2
 
+print("generating data for storm surge between dates {} and {}".format(date_start, date_end))
+print("corresponding to a theoretical number of entries: {}".format(number_of_entries))
+
 # there should be 2 entries per day, corresponding to the 2 runs of the storm surge model
 entries_per_day = ["00", "12"]
 
@@ -40,12 +48,13 @@ entries_per_day = ["00", "12"]
 list_entries = []
 
 ##################################################
+# at present, train on a single station
 # the station used
 # this should be Bergen
 station_used = 6
 
 ##################################################
-# getting the label
+# generate the dataset
 
 
 crrt_date = date_start
