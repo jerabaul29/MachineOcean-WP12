@@ -74,13 +74,14 @@ def get_kyststasjoner_average_data(path_to_nc):
 
     nbr_ensemble = 52
     nbr_stations = 23
+    nbr_stations_updated = 26
 
     nc_water_model = nc_content[datafield_model][:]
     nc_water_station = nc_content[datafield_stations][:]
     nc_water_tide = nc_content[datafield_tide][:]
 
     assert nc_water_model.shape[1] == nbr_ensemble
-    assert nc_water_model.shape[3] == nbr_stations
+    assert nc_water_model.shape[3] == nbr_stations or nc_water_model.shape[3] == nbr_stations_updated
 
     # water level at the measurement stations from observations, when tide effect is subtracted
     nc_water_station_notide = nc_water_station - nc_water_tide
