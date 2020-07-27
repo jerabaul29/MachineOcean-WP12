@@ -16,6 +16,9 @@ nc_content = nc4.Dataset(path, 'r')
 nc_time = nc_content["time"][:]
 nc_datetime = [datetime.datetime.fromtimestamp(crrt_time) for crrt_time in nc_time]
 
+for date in nc_datetime:
+    print(date)
+
 datafield_model = "totalwater"
 datafield_stations = "observed"
 datafield_tide = "tide"
