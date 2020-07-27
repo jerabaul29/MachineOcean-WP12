@@ -81,6 +81,8 @@ def get_kyststasjoner_average_data(path_to_nc):
     nc_water_tide = nc_content[datafield_tide][:]
 
     assert nc_water_model.shape[1] == nbr_ensemble
+
+    # NOTE: the number of stations went from 23 to 26 in early 2020.
     assert nc_water_model.shape[3] == nbr_stations or nc_water_model.shape[3] == nbr_stations_updated
 
     # water level at the measurement stations from observations, when tide effect is subtracted
