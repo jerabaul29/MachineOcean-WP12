@@ -2,7 +2,7 @@
 
 import netCDF4 as nc4
 import numpy as np
-# import motools.config as moc
+import motools.config as moc
 from datetime import date
 import os
 
@@ -30,9 +30,8 @@ def kyststasjoner_path(datetime_day, run_time, basepath=None):
     assert type(datetime_day) is date
 
     if basepath is None:
-        # mo_config = moc.Config()
-        # TODO: FIXME with the updated config setup
-        basepath = "/lustre/storeB/project/fou/hi/stormsurge_eps/2dEPS_archive"
+        mo_config = moc.Config()
+        basepath = mo_config.getSetting("data", "stormSurgeModelArchive")
         basepath += "/"
     else:
         raise RuntimeError("only supporting basepath from mo config for now")
