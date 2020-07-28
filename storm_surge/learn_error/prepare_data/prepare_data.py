@@ -49,20 +49,22 @@ name_dataset = "kystdata_{}_{}.nc".format(date_start, date_end)
 nc_path_out = folder_prepared_storm_surge + "/" + name_dataset
 print("dataset will be written to: {}".format(nc_path_out))
 
-# root_grp = nc4.Dataset(nc_path_out, 'w', format='NETCDF4')
-# root_grp.description = "storm surge data for learning"
+with nc4.Dataset(nc_path_out, 'w', format='NETCDF4') as nc4_fh:
+    nc4_fh.description = "storm surge data for learning"
 
-for crrt_date in mod.datetime_range(date_start, date_end):
-    for crrt_day_entry in entries_per_day:
-        print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
-        # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
-        # there are some data / runs missing, corrupted, etc.
-        try:
-            path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
-            obs, model_mean, model_std = kn.get_kyststasjoner_data(path_to_kyst_data)
+    # add dimensions, fields, etc
 
-        except AssertionError as e:
-            moe.detailed_assert_repr(e)
+    for crrt_date in mod.datetime_range(date_start, date_end):
+        for crrt_day_entry in entries_per_day:
+            print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
+            # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
+            # there are some data / runs missing, corrupted, etc.
+            try:
+                path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
+                obs, model_mean, model_std = kn.get_kyststasjoner_data(path_to_kyst_data)
 
-        except Exception as e:
-            print(repr(e))
+            except AssertionError as e:
+                moe.detailed_assert_repr(e)
+
+            except Exception as e:
+                print(repr(e))
