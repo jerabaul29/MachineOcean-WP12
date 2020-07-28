@@ -7,25 +7,15 @@
 - for each entry, label is storm surge prediction error, each hour, for the next 5 days.
 """
 
-"""NOTES:
+"""
+NOTES:
     - the dataset is quite small; is there a way to get longer time series?
 """
 
-import json
 import datetime
-
-##################################################
-# load config information
-
-# TODO: FIXME, use the new get method
-with open("../../../config/config.json", 'r') as fh:
-    config = json.load(fh)
-
-version = '1.0'
-
-lustre_root_path = config['config'][version]['path']['dataRoot']
-
-print("base path on lustre: {}".format(lustre_root_path))
+import motools.storm_surge.kyststasjoner_norge as kn
+import sys
+import traceback
 
 ##################################################
 # the time period which is spanned for performing the learning
@@ -61,16 +51,26 @@ crrt_date = date_start
 
 while True:
     for crrt_day_entry in entries_per_day:
+        print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
         # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
         # there are some data / runs missing, corrupted, etc.
         try:
-            # generate the predictor
+            path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
+            obs, model_mean, model_std = kn.get_kyststasjoner_average_data(path_to_kyst_data)
+            print(obs)
 
-            # generate the label
+        except AssertionError as e:
+            _, _, tb = sys.exc_info()
+            traceback.print_tb(tb) # Fixed format
+            tb_info = traceback.extract_tb(tb)
+            filename, line, func, text = tb_info[-1]
 
+            print('An error occurred on line {} in statement {}'.format(line, text))
+            print("continue data generation")
 
-        except:
-            pass
+        except Exception as e:
+            print(repr(e))
+
 
     crrt_date += duration_day
 
