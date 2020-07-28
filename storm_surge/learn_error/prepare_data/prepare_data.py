@@ -1,19 +1,17 @@
 """"""
 
+import datetime
+import motools.storm_surge.kyststasjoner_norge as kn
+import motools.config as moc
+import netCDF4 as nc4
+from motools.helper import date as mod
+from motools.helper import errors as moe
+
+
 """
 NOTES:
     - the dataset is quite small; is there a way to get longer time series?
 """
-
-import datetime
-import motools.storm_surge.kyststasjoner_norge as kn
-import netCDF4 as nc4
-import motools.config as moc
-from motools.helper import date as mod
-from motools.helper import errors as moe
-
-import sys
-import traceback
 
 ##################################################
 # time aspect of the data preparation

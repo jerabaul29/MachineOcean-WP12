@@ -9,4 +9,4 @@ def detailed_assert_repr(assert_except):
 
     print(repr(assert_except))
     _, _, tb = sys.exc_info()
-    traceback.print_tb(tb) # Fixed format
+    traceback.print_tb(tb)

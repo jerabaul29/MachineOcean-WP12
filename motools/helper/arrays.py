@@ -1,9 +1,14 @@
 """Some helpers for working with arrays."""
 
 import numpy as np
+import motools.config as moc
 
 
-def masked_array_to_filled_array(array_in, fill_value=1.0e37):
+mo_config = moc.Config()
+fill_value = mo_config.getSetting("params", "fillValue")
+
+
+def masked_array_to_filled_array(array_in, fill_value=fill_value):
     """If array_in is a masked array, convert to a normal array
     applying the fill_value."""
 

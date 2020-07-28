@@ -1,10 +1,10 @@
 """Helper functions to read storm surge data from the kyststasjoner_norge nc files."""
 
+from datetime import date
+import os
 import netCDF4 as nc4
 import numpy as np
 import motools.config as moc
-from datetime import date
-import os
 from motools.helper import arrays as moa
 
 
@@ -63,7 +63,7 @@ def get_kyststasjoner_data(path_to_nc):
 
         All the output fields have a dimension 2. First index is time, second index is
         station. The arrays returned are numpy normal arrays, not masked arrays as present
-        in some old files. A value of 1.0e37 is used for filling masked values, similar
+        in some old files. The config fill value is used for filling masked values, similar
         to what is used in recent files.
     """
 
