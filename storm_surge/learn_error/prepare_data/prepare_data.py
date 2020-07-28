@@ -10,6 +10,10 @@ import motools.storm_surge.kyststasjoner_norge as kn
 import netCDF4 as nc4
 import motools.config as moc
 from motools.helper import date as mod
+from motools.helper import errors as moe
+
+import sys
+import traceback
 
 ##################################################
 # time aspect of the data preparation
@@ -50,15 +54,17 @@ print("dataset will be written to: {}".format(nc_path_out))
 # root_grp = nc4.Dataset(nc_path_out, 'w', format='NETCDF4')
 # root_grp.description = "storm surge data for learning"
 
-crrt_date = date_start
+for crrt_date in mod.datetime_range(date_start, date_end):
+    for crrt_day_entry in entries_per_day:
+        print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
+        # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
+        # there are some data / runs missing, corrupted, etc.
+        try:
+            path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
+            obs, model_mean, model_std = kn.get_kyststasjoner_data(path_to_kyst_data)
 
-for crrt_day_entry in mod.datetime_range(date_start, date_end):
-    print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
-    # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
-    # there are some data / runs missing, corrupted, etc.
-    try:
-        path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
-        obs, model_mean, model_std = kn.get_kyststasjoner_data(path_to_kyst_data)
+        except AssertionError as e:
+            moe.detailed_assert_repr(e)
 
-    except Exception as e:
-        print(repr(e))
+        except Exception as e:
+            print(repr(e))

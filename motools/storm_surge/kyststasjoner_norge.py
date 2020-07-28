@@ -26,9 +26,9 @@ def kyststasjoner_path(datetime_day, run_time, basepath=None):
     """
 
     admissible_run_time = ["00", "12"]
-    assert run_time in admissible_run_time
+    assert run_time in admissible_run_time, "runs at 00 and 12"
 
-    assert type(datetime_day) is date
+    assert type(datetime_day) is date, "take a datetime.date"
 
     if basepath is None:
         mo_config = moc.Config()
@@ -86,12 +86,12 @@ def get_kyststasjoner_data(path_to_nc):
     nc_water_station = nc_content[datafield_stations][:]
     nc_water_tide = nc_content[datafield_tide][:]
 
-    assert nc_water_model.shape[1] == nbr_ensemble, "assert ensemble size"
+    assert nc_water_model.shape[1] == nbr_ensemble, "ensemble size"
 
     # NOTE: the number of stations went from 23 to 26 in early 2020.
-    assert nc_water_model.shape[3] == nbr_stations or nc_water_model.shape[3] == nbr_stations_updated, "assert number of stations"
+    assert nc_water_model.shape[3] == nbr_stations or nc_water_model.shape[3] == nbr_stations_updated, "number of stations"
 
-    assert nc_water_model.shape[0] == nbr_time_values, "assert number of time values"
+    assert nc_water_model.shape[0] == nbr_time_values, "number of time values"
 
     # water level at the measurement stations from observations, when tide effect is subtracted
     nc_water_station_notide = nc_water_station - nc_water_tide
