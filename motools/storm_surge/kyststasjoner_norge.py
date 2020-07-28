@@ -108,7 +108,7 @@ def get_kyststasjoner_data(path_to_nc):
 
     # check that the stations are still in the same order
     assert np.allclose(lat_23_coast_stations, nc_content["latitude"][0][:23]), ("make sure the stations are always in same order; compare {} and {}".format(lat_23_coast_stations, nc_content["latitude"][0][:23]))
-    assert np.allclose(lon_23_coast_stations, nc_content["longitude"][0][:23]), "make sure the stations are always in same order"
+    assert np.allclose(lon_23_coast_stations, nc_content["longitude"][0][:23]), ("make sure the stations are always in same order, compare {} and {}".format(lon_23_coast_stations, nc_content["longitude"][0][:23]))
 
     # water level at the measurement stations from observations, when tide effect is subtracted
     nc_water_station_notide = nc_water_station - nc_water_tide

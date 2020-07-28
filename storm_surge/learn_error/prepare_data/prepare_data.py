@@ -52,7 +52,18 @@ print("dataset will be written to: {}".format(nc_path_out))
 with nc4.Dataset(nc_path_out, 'w', format='NETCDF4') as nc4_fh:
     nc4_fh.description = "storm surge data for learning"
 
-    # add dimensions, fields, etc
+    # add dimensions, fields, etc, in static way
+
+    # if no exception, just put the data.
+
+    # if exception, make sure to fill with "bad" values and raise an exception flag inside the dataset
+
+    # add an exception raised flag
+
+    # this only gathers the data, i.e. this has no responsibility to check for availability of data in the past, etc
+
+    # many data sources -> 'gathered' data records -> learning entries; this takes care of the first step
+    # need one more step to go from gathered to learning entries; may require
 
     for crrt_date in mod.datetime_range(date_start, date_end):
         for crrt_day_entry in entries_per_day:
