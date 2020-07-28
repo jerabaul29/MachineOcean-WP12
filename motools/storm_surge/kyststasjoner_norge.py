@@ -7,6 +7,19 @@ import numpy as np
 import motools.config as moc
 from motools.helper import arrays as moa
 
+lat_23_coast_stations = \
+    np.array([59.05473 , 59.683765, 59.683765, 59.029335, 58.02723 , 59.01525 ,
+              60.434822, 61.93313 , 62.458206, 63.16086 , 63.444027, 63.45151 ,
+              64.78673 , 67.3244  , 68.451836, 68.19022 , 69.32801 , 68.813736,
+              69.722496, 70.64632 , 70.97274 , 70.33625 , 78.92994 ])
+
+lon_23_coast_stations = \
+    np.array([10.92997  , 10.632921 , 10.632921 ,  9.84748  ,  7.564182 ,
+              5.746805 ,  5.1184344,  5.1168604,  6.082075 ,  7.7331095,
+              9.124409 , 10.455196 , 11.231044 , 14.360688 , 17.376715 ,
+              14.486947 , 16.06782  , 16.649126 , 19.036953 , 23.619656 ,
+              25.970213 , 31.086498 , 12.014665 ])
+
 
 def kyststasjoner_path(datetime_day, run_time, basepath=None):
     """Provide the path to the storm surge nc file for the corresponding
@@ -94,10 +107,8 @@ def get_kyststasjoner_data(path_to_nc):
     assert nc_water_model.shape[0] == nbr_time_values, "number of time values"
 
     # check that the stations are still in the same order
-    lat_data = np.genfromtxt("./lat_23_coast_stations.csv", delimiter=" ")
-    assert np.array_equal(lat_data, nc_content["latitude"][0][:23]), "make sure the stations are always in same order"
-    lon_data = np.genfromtxt("./lon_23_coast_stations.csv", delimiter=" ")
-    assert np.array_equal(lon_data, nc_content["longitude"][0][:23]), "make sure the stations are always in same order"
+    assert np.array_equal(lat_23_coast_stations, nc_content["latitude"][0][:23]), "make sure the stations are always in same order"
+    assert np.array_equal(lon_23_coast_stations, nc_content["longitude"][0][:23]), "make sure the stations are always in same order"
 
     # water level at the measurement stations from observations, when tide effect is subtracted
     nc_water_station_notide = nc_water_station - nc_water_tide
