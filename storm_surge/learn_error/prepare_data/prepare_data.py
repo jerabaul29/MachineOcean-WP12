@@ -59,15 +59,6 @@ while True:
             obs, model_mean, model_std = kn.get_kyststasjoner_average_data(path_to_kyst_data)
             print(obs)
 
-        except AssertionError as e:
-            _, _, tb = sys.exc_info()
-            traceback.print_tb(tb) # Fixed format
-            tb_info = traceback.extract_tb(tb)
-            filename, line, func, text = tb_info[-1]
-
-            print('An error occurred on line {} in statement {}'.format(line, text))
-            print("continue data generation")
-
         except Exception as e:
             print(repr(e))
 
