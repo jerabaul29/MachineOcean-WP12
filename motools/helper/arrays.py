@@ -3,6 +3,19 @@
 import numpy as np
 
 
+def masked_array_to_filled_array(array_in, fill_value=1.0e37):
+    """If array_in is a masked array, convert to a normal array
+    applying the fill_value."""
+
+    assert isinstance(array_in, (np.ndarray, np.ma.MaskedArray)), ("array_in must be a numpy array or masked array, but received {}".format(type(array_in)))
+
+    if isinstance(array_in, np.ma.MaskedArray):
+        array_in.fill_value = fill_value
+        array_in = np.ma.filled(array_in)
+
+    return(array_in)
+
+
 def check_strict_monotonic(array, list_dimensions=None):
     """Check that an array is strictly monotonic. Raise a
     ValueError if not.

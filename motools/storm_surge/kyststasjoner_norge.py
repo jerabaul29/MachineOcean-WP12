@@ -5,6 +5,7 @@ import numpy as np
 import motools.config as moc
 from datetime import date
 import os
+from motools.helper import arrays as moa
 
 
 def kyststasjoner_path(datetime_day, run_time, basepath=None):
@@ -45,20 +46,7 @@ def kyststasjoner_path(datetime_day, run_time, basepath=None):
     return(nc_path)
 
 
-def masked_array_to_filled_array(array_in, fill_value=1.0e37):
-    """If array_in is a masked array, convert to a normal array
-    applying the fill_value."""
-
-    assert(isinstance(array_in, (np.ndarray, np.ma.MaskedArray)))
-
-    if isinstance(array_in, np.ma.MaskedArray):
-        array_in.fill_value = fill_value
-        array_in = np.ma.filled(array_in)
-
-    return(array_in)
-
-
-def get_kyststasjoner_average_data(path_to_nc):
+def get_kyststasjoner_data(path_to_nc):
     """Get the relevant training data from the nc file at location path_to_nc.
 
     Input:
@@ -88,17 +76,22 @@ def get_kyststasjoner_average_data(path_to_nc):
     datafield_tide = "tide"
 
     nbr_ensemble = 52
+
     nbr_stations = 23
     nbr_stations_updated = 26
+
+    nbr_time_values = 121
 
     nc_water_model = nc_content[datafield_model][:]
     nc_water_station = nc_content[datafield_stations][:]
     nc_water_tide = nc_content[datafield_tide][:]
 
-    assert nc_water_model.shape[1] == nbr_ensemble
+    assert nc_water_model.shape[1] == nbr_ensemble, "assert ensemble size"
 
     # NOTE: the number of stations went from 23 to 26 in early 2020.
-    assert nc_water_model.shape[3] == nbr_stations or nc_water_model.shape[3] == nbr_stations_updated
+    assert nc_water_model.shape[3] == nbr_stations or nc_water_model.shape[3] == nbr_stations_updated, "assert number of stations"
+
+    assert nc_water_model.shape[0] == nbr_time_values, "assert number of time values"
 
     # water level at the measurement stations from observations, when tide effect is subtracted
     nc_water_station_notide = nc_water_station - nc_water_tide
@@ -111,9 +104,9 @@ def get_kyststasjoner_average_data(path_to_nc):
     # water level at the measurement stations from model, tide effect subtracted, ensemble std
     nc_water_model_std = np.std(nc_water_model, axis=1)
 
-    obs_notide = masked_array_to_filled_array(np.squeeze(nc_water_station_notide[:, 0, :]))
-    model_mean_notide = masked_array_to_filled_array(np.squeeze(nc_water_model_mean_notide[:, 0, :]))
-    model_std_notide = masked_array_to_filled_array(np.squeeze(nc_water_model_std[:, 0, :]))
+    obs_notide = moa.masked_array_to_filled_array(np.squeeze(nc_water_station_notide[:, 0, :]))
+    model_mean_notide = moa.masked_array_to_filled_array(np.squeeze(nc_water_model_mean_notide[:, 0, :]))
+    model_std_notide = moa.masked_array_to_filled_array(np.squeeze(nc_water_model_std[:, 0, :]))
 
     return(obs_notide,
            model_mean_notide,

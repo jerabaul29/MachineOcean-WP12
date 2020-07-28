@@ -1,11 +1,4 @@
-"""Prepare the data for a simple error learning, on a single station.
-
-- 1 entry per run of the storm surge model, i.e., 2 entries per day, 1 at 00hr and 1 at 12hr.
-
-- for each entry, predictor is several arrays of data concatenated. Each array of data spans 5 days in the future, with an interval of 1 hour.
-
-- for each entry, label is storm surge prediction error, each hour, for the next 5 days.
-"""
+""""""
 
 """
 NOTES:
@@ -14,56 +7,58 @@ NOTES:
 
 import datetime
 import motools.storm_surge.kyststasjoner_norge as kn
-import sys
-import traceback
+import netCDF4 as nc4
+import motools.config as moc
+from motools.helper import date as mod
 
 ##################################################
-# the time period which is spanned for performing the learning
+# time aspect of the data preparation
+##################################################
+
+# the time period which is spanned
 date_start = datetime.date(2017, 12, 1)
-duration_day = datetime.timedelta(days=1)
 # date_end = datetime.date(2020, 7, 1)
 date_end = datetime.date(2017, 12, 15)
 
+# the number of entries per day
+entries_per_day = ["00", "12"]
+nbr_entries_per_day = len(entries_per_day)
+
+duration_day = datetime.timedelta(days=1)
 number_of_days = (date_end - date_start).days
-number_of_entries = number_of_days * 2
+number_of_entries = number_of_days * nbr_entries_per_day
 
 print("generating data for storm surge between dates {} and {}".format(date_start, date_end))
 print("corresponding to a theoretical number of entries: {}".format(number_of_entries))
 
-# there should be 2 entries per day, corresponding to the 2 runs of the storm surge model
-entries_per_day = ["00", "12"]
-
-# first make a list_entries, then add one by one the valid entries, then make it into a numpy array.
-# each entry is a tuple, (predictors, labels)
-list_entries = []
-
 ##################################################
-# at present, train on a single station
-# the station used
-# this should be Bergen
-station_used = 6
+# data properties
+##################################################
+
+number_of_stations = 23  # use 23 stations, which is what is present on the older files
 
 ##################################################
 # generate the dataset
+##################################################
 
+mo_config = moc.Config()
+folder_prepared_storm_surge = mo_config.getSetting("data", "stormSurgePreparedData")
+name_dataset = "kystdata_{}_{}.nc".format(date_start, date_end)
+nc_path_out = folder_prepared_storm_surge + "/" + name_dataset
+print("dataset will be written to: {}".format(nc_path_out))
+
+# root_grp = nc4.Dataset(nc_path_out, 'w', format='NETCDF4')
+# root_grp.description = "storm surge data for learning"
 
 crrt_date = date_start
 
-while True:
-    for crrt_day_entry in entries_per_day:
-        print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
-        # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
-        # there are some data / runs missing, corrupted, etc.
-        try:
-            path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
-            obs, model_mean, model_std = kn.get_kyststasjoner_average_data(path_to_kyst_data)
-            print(obs)
+for crrt_day_entry in mod.datetime_range(date_start, date_end):
+    print("generate data day {} entry {}".format(crrt_date, crrt_day_entry))
+    # now looking at the entry corresponding to crrt_date at the time crrt_day_entry
+    # there are some data / runs missing, corrupted, etc.
+    try:
+        path_to_kyst_data = kn.kyststasjoner_path(crrt_date, crrt_day_entry)
+        obs, model_mean, model_std = kn.get_kyststasjoner_data(path_to_kyst_data)
 
-        except Exception as e:
-            print(repr(e))
-
-
-    crrt_date += duration_day
-
-    if crrt_date >= date_end:
-        break
+    except Exception as e:
+        print(repr(e))
