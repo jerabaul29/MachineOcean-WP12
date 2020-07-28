@@ -45,6 +45,19 @@ def kyststasjoner_path(datetime_day, run_time, basepath=None):
     return(nc_path)
 
 
+def masked_array_to_filled_array(array_in, fill_value=1.0e37):
+    """If array_in is a masked array, convert to a normal array
+    applying the fill_value."""
+
+    assert(isinstance(array_in, (np.ndarray, np.ma.MaskedArray)))
+
+    if isinstance(array_in, np.ma.MaskedArray):
+        array_in.fill_value = fill_value
+        array_in = np.ma.filled(array_in)
+
+    return(array_in)
+
+
 def get_kyststasjoner_average_data(path_to_nc):
     """Get the relevant training data from the nc file at location path_to_nc.
 
@@ -54,16 +67,19 @@ def get_kyststasjoner_average_data(path_to_nc):
     Output:
         - (nc_water_station_notide, nc_water_model_mean_notide, nc_water_model_std)
         tuple containing the data, where the elements are:
-            - nc_water_station_notide: the observation at the stations, corrected for the tide
-            - nc_water_model_mean_notide: the model outuput at the stations, corrected
+            - obs_notide: the observation at the stations, corrected for the tide
+            - model_mean_notide: the model outuput at the stations, corrected
                 for the tide, averaged over ensemble members.
-            - nc_water_model_std: the standard deviation of the model output at the stations,
+            - model_std_notide: the standard deviation of the model output at the stations,
                 based on the ensemble members.
 
         All the output fields have a dimension 2. First index is time, second index is
-        station.
+        station. The arrays returned are numpy normal arrays, not masked arrays as present
+        in some old files. A value of 1.0e37 is used for filling masked values, similar
+        to what is used in recent files.
     """
-    assert os.path.isfile(path_to_nc)
+
+    assert os.path.isfile(path_to_nc), ("invalid path to nc file: {}".format(path_to_nc))
 
     nc_content = nc4.Dataset(path_to_nc, 'r')
 
@@ -95,6 +111,10 @@ def get_kyststasjoner_average_data(path_to_nc):
     # water level at the measurement stations from model, tide effect subtracted, ensemble std
     nc_water_model_std = np.std(nc_water_model, axis=1)
 
-    return(np.squeeze(nc_water_station_notide[:, 0, :]),
-           np.squeeze(nc_water_model_mean_notide[:, 0, :]),
-           np.squeeze(nc_water_model_std[:, 0, :]))
+    obs_notide = masked_array_to_filled_array(np.squeeze(nc_water_station_notide[:, 0, :]))
+    model_mean_notide = masked_array_to_filled_array(np.squeeze(nc_water_model_mean_notide[:, 0, :]))
+    model_std_notide = masked_array_to_filled_array(np.squeeze(nc_water_model_std[:, 0, :]))
+
+    return(obs_notide,
+           model_mean_notide,
+           model_std_notide)
