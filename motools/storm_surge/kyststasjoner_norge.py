@@ -78,9 +78,10 @@ def get_kyststasjoner_data(path_to_nc, model_field="stormsurge", inspect=False):
             or not.
 
     Output:
-        - (unix_time, obs_notide, model_mean_notide, model_std_notide)
+        - (unix_time, tide, obs_notide, model_mean_notide, model_std_notide, model_members_notide)
         tuple containing the data, where the elements are:
             - unix_time: the epoch time
+            - tide: the tide prediction
             - obs_notide: the observation at the stations, without the tide
             - model_mean_notide: the model outuput at the stations, without
                 the tide, averaged over ensemble members.
@@ -89,7 +90,7 @@ def get_kyststasjoner_data(path_to_nc, model_field="stormsurge", inspect=False):
             - model_members_notide: the model output at the stations, without the tide.
                 for each ensemble member
 
-        obs_notide, model_mean_notide, model_std_notide have a dimension 2. First index is time, second index is
+        tide, obs_notide, model_mean_notide, model_std_notide have a dimension 2. First index is time, second index is
         station.
 
         model_members_notide has a dimension 3. First index is time, second is ensemble member, third is station.
@@ -158,6 +159,7 @@ def get_kyststasjoner_data(path_to_nc, model_field="stormsurge", inspect=False):
 
     # depending on the date of production of the nc datasets, data is either numpy array or masked array; turn all to numpy array
     # remove singleton dimensions
+    tide = moa.masked_array_to_filled_array(np.squeeze(nc_water_tide[:, dummy, :]))
     obs_notide = moa.masked_array_to_filled_array(np.squeeze(nc_water_station_notide[:, dummy, :]))
     model_mean_notide = moa.masked_array_to_filled_array(np.squeeze(nc_water_model_mean_notide[:, dummy, :]))
     model_std_notide = moa.masked_array_to_filled_array(np.squeeze(nc_water_model_std[:, dummy, :]))
@@ -202,6 +204,7 @@ def get_kyststasjoner_data(path_to_nc, model_field="stormsurge", inspect=False):
         plt.show()
 
     return(unix_time,
+           tide,
            obs_notide,
            model_mean_notide,
            model_std_notide,
