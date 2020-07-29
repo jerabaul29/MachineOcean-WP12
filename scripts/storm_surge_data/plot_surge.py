@@ -68,7 +68,7 @@ show_ensemble_simulations = True
 
 if show_ensemble_simulations:
     for ensemble_nbr in range(nbr_ensemble):
-        plt.plot(nc_datetime, nc_water_model[:, ensemble_nbr, dummy, station_nbr],
+        plt.plot(nc_datetime, nc_water_model_notide[:, ensemble_nbr, dummy, station_nbr],
                  color='k', linewidth=0.5, label="ens {}".format(ensemble_nbr))
 
 plt.plot(nc_datetime, nc_water_model_mean_notide[:, dummy, station_nbr],
