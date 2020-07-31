@@ -24,7 +24,9 @@ lon_23_coast_stations = \
               14.486947, 16.06782, 16.649126, 19.036953, 23.619656,
               25.970213, 31.086498, 12.014665])
 
-assert lat_23_coast_stations.shape == lon_23_coast_stations.shape, ("lat and lon arrays for the 23 coast stations should have same size")
+assert lat_23_coast_stations.shape == lon_23_coast_stations.shape, \
+    ("lat and lon arrays for the 23 coast stations should have same size")
+
 
 def kyststasjoner_path(datetime_day, run_time, basepath=None):
     """Provide the path to the storm surge nc file for the corresponding
