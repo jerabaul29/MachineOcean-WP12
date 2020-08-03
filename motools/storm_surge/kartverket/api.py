@@ -1,9 +1,20 @@
+import logging
+import datetime
+from pprint import pformat
 import urllib.request
 from bs4 import BeautifulSoup as bfls
+import motools.config as moc
+
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+log = logging.getLogger(__name__)
+logging.getLogger('chardet.charsetprober').setLevel(logging.INFO)
 
 
+# TODO: use a class requester that allows to make sure not making too many requests all the time.
 def perform_request(request):
     assert isinstance(request, str)
+
+    log.info("send request {}".format(request))
 
     with urllib.request.urlopen(request) as response:
         status = response.status
@@ -18,28 +29,46 @@ def perform_request(request):
 class KartverketAPI(object):
     def __init__(self):
         self.stations_IDs = None
-        self.stations_info_dict = None
-        # TODO: read from conf fill value
+        self.dict_all_stations_info = None
+
+        self.mo_config = moc.Config()
+
+        self.fill_value = self.mo_config.getSetting("params", "fillValue")
 
     def get_stations_info(self):
+        # request the list of stations with information
         request = "http://api.sehavniva.no/tideapi.php?tide_request=stationlist&type=perm"
         html_string = perform_request(request)
         soup = bfls(html_string, features="lxml")
         list_tags = soup.find('stationinfo').select('location')
 
-        dict_all_stations_info = {}
+        # turn the tags into some dict entries for ordering the information
+        self.dict_all_stations_info = {}
 
         for crrt_tag in list_tags:
             dict_tag = crrt_tag.attrs
-            dict_all_stations_info[dict_tag["code"]] = dict_tag
+            self.dict_all_stations_info[dict_tag["code"]] = dict_tag
 
-        # TODO: add Time interval of available water level data from this station
-        # TODO: add Year of first and last statistics for station
+        self.stations_IDs = list(self.dict_all_stations_info.keys())
+        log.info("got {} stations: {}".format(len(self.stations_IDs), self.stations_IDs))
 
-        self.stations_IDs = list(dict_all_stations_info.keys())
-        self.stations_info_dict = dict_all_stations_info
+        # also request the start and end of data for each station
+        for crrt_station in self.stations_IDs:
+            request = "http://api.sehavniva.no/tideapi.php?tide_request=obstime&stationcode={}".format(crrt_station)
+            html_string = perform_request(request)
+            soup = bfls(html_string, features="lxml")
 
-        return(dict_all_stations_info)
+            self.dict_all_stations_info[crrt_station]["time_bounds"] = {}
+
+            for crrt_time in ["first", "last"]:
+                crrt_time_str = soup.select("obstime")[0][crrt_time]
+                crrt_datetime = datetime.datetime.fromisoformat(crrt_time_str)
+                self.dict_all_stations_info[crrt_station]["time_bounds"][crrt_time] = crrt_datetime
+
+        log.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
+
+
+        return(self.dict_all_stations_info)
 
     def get_one_station_over_time_extent(self):
         # TODO: station ID, time start, time stop, frequency
@@ -59,3 +88,7 @@ class KartverketAPI(object):
 # TODO: use a request timer to not overload the server; have it as a helper? / for the whole class
 # TODO: check the water level change, and similar corrections
 
+if __name__ == "__main__":
+    log.info("run an example of query")
+    kartveket_api = KartverketAPI()
+    all_stations_info = kartveket_api.get_stations_info()
