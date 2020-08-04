@@ -62,22 +62,42 @@ class KartverketAPI():
 
         logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
 
-    def get_one_station_over_time_extent(self):
-        # TODO: station ID, time start, time stop, frequency
-        # TODO: check that frequency is lower or equal to the available frequency
-        # TODO: check that the time interval is compatible with time extent
+    def get_one_station_over_time_extent(self, station_ID, time_start, time_end):
+        """Query information for one individual station, between two dates.
+
+        Input:
+            - station_ID: a valid station ID (those are the 3 letters IDs used by the API)
+            - time_start and time_end: the start and end dates for the data query
+
+        Notes:
+            - the maximum data size is low enough that the result can be stored in a single variable.
+            - however, to limit the size of individual queries answers, the query is broken in segments
+                of maximum length 10 days.
+        """
+
+        if not station_ID in self.stations_IDs:
+            raise ValueError("station {} is not in {}".format(station_ID, self.stations_IDs))
+
+        if not (isinstance(time_start, datetime.date) and isinstance(time_end, datetime.date)):
+            raise ValueError("time_start and time_end must be datetime dates")
+
+        if not (time_start > self.dict_all_stations_info[station_ID]["time_bounds"]["first"] and \
+                time_end < self.dict_all_stations_info[station_ID]["time_bounds"]["last"]):
+            raise ValueError("the time interval is not within the station logging span {} to {}".format(self.dict_all_stations_info[station_ID]["time_bounds"]["first"], self.dict_all_stations_info[station_ID]["time_bounds"]["last"]))
+
+        # TODO: get as segments of duration 10 days maximum if too long duration
+        # TODO: update the time_range function to allow doing the 10 days intervalling
+        # TODO: by default use the highest resolution (10 minutes).
         pass
 
-    def get_all_stations_over_time_extent(self):
-        # TODO: choose sampling frequency, start, end time
+    def all_stations_over_time_extent(self):
+        # TODO: choose start, end time
         # TODO: loop through all stations
-        # TODO: check that sampling frequency is ok
         # TODO: check that time of availability is ok
         # TODO: populate the data
 
         pass
 
-# TODO: use a request timer to not overload the server; have it as a helper? / for the whole class
 # TODO: check the water level change, and similar corrections
 
 if __name__ == "__main__":
