@@ -1,44 +1,33 @@
+"""documentation is at:
+http://api.sehavniva.no/tideapi_protocol.pdf
+"""
+
 import logging
 import datetime
 from pprint import pformat
-import urllib.request
 from bs4 import BeautifulSoup as bfls
 import motools.config as moc
+from motools.helper.url_request import NicedUrlRequest
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 logging.getLogger('chardet.charsetprober').setLevel(logging.INFO)
 
 
-# TODO: use a class requester that allows to make sure not making too many requests all the time.
-def perform_request(request):
-    assert isinstance(request, str)
-
-    log.info("send request {}".format(request))
-
-    with urllib.request.urlopen(request) as response:
-        status = response.status
-        html_string = response.read()
-
-    assert status == 200, ("received status {} on request {}".format(status, request))
-    assert isinstance(html_string, bytes)
-
-    return(html_string)
-
-
-class KartverketAPI(object):
+class KartverketAPI():
     def __init__(self):
         self.stations_IDs = None
         self.dict_all_stations_info = None
 
         self.mo_config = moc.Config()
+        self.url_requester = NicedUrlRequest()
 
         self.fill_value = self.mo_config.getSetting("params", "fillValue")
 
     def get_stations_info(self):
         # request the list of stations with information
         request = "http://api.sehavniva.no/tideapi.php?tide_request=stationlist&type=perm"
-        html_string = perform_request(request)
+        html_string = self.url_requester.perform_request(request)
         soup = bfls(html_string, features="lxml")
         list_tags = soup.find('stationinfo').select('location')
 
@@ -55,7 +44,7 @@ class KartverketAPI(object):
         # also request the start and end of data for each station
         for crrt_station in self.stations_IDs:
             request = "http://api.sehavniva.no/tideapi.php?tide_request=obstime&stationcode={}".format(crrt_station)
-            html_string = perform_request(request)
+            html_string = self.url_requester.perform_request(request)
             soup = bfls(html_string, features="lxml")
 
             self.dict_all_stations_info[crrt_station]["time_bounds"] = {}
@@ -66,7 +55,6 @@ class KartverketAPI(object):
                 self.dict_all_stations_info[crrt_station]["time_bounds"][crrt_time] = crrt_datetime
 
         log.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
-
 
         return(self.dict_all_stations_info)
 
