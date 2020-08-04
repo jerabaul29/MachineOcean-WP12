@@ -1,4 +1,6 @@
-"""documentation is at:
+"""A class to query the storm surge data from kartverkets web API.
+
+The full API documentation is at:
 http://api.sehavniva.no/tideapi_protocol.pdf
 """
 
@@ -8,13 +10,11 @@ from pprint import pformat
 from bs4 import BeautifulSoup as bfls
 import motools.config as moc
 from motools.helper.url_request import NicedUrlRequest
-
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-log = logging.getLogger(__name__)
-logging.getLogger('chardet.charsetprober').setLevel(logging.INFO)
+from motools import logger
 
 
 class KartverketAPI():
+    """Query class for the Kartverkets storm surge web API."""
     def __init__(self):
         self.stations_IDs = None
         self.dict_all_stations_info = None
@@ -24,7 +24,13 @@ class KartverketAPI():
 
         self.fill_value = self.mo_config.getSetting("params", "fillValue")
 
-    def get_stations_info(self):
+        logger.info("Populate the stations info; this may take a few seconds...")
+        self.populate_stations_info()
+        logger.info("...done.")
+
+    def populate_stations_info(self):
+        """Get the metadata about all registered stations. Necessary to perform individual
+        station queries."""
         # request the list of stations with information
         request = "http://api.sehavniva.no/tideapi.php?tide_request=stationlist&type=perm"
         html_string = self.url_requester.perform_request(request)
@@ -39,7 +45,7 @@ class KartverketAPI():
             self.dict_all_stations_info[dict_tag["code"]] = dict_tag
 
         self.stations_IDs = list(self.dict_all_stations_info.keys())
-        log.info("got {} stations: {}".format(len(self.stations_IDs), self.stations_IDs))
+        logger.info("got {} stations: {}".format(len(self.stations_IDs), self.stations_IDs))
 
         # also request the start and end of data for each station
         for crrt_station in self.stations_IDs:
@@ -54,9 +60,7 @@ class KartverketAPI():
                 crrt_datetime = datetime.datetime.fromisoformat(crrt_time_str)
                 self.dict_all_stations_info[crrt_station]["time_bounds"][crrt_time] = crrt_datetime
 
-        log.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
-
-        return(self.dict_all_stations_info)
+        logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
 
     def get_one_station_over_time_extent(self):
         # TODO: station ID, time start, time stop, frequency
@@ -77,6 +81,6 @@ class KartverketAPI():
 # TODO: check the water level change, and similar corrections
 
 if __name__ == "__main__":
-    log.info("run an example of query")
+    logger.info("run an example of query")
+    logger.setLevel(logging.INFO)
     kartveket_api = KartverketAPI()
-    all_stations_info = kartveket_api.get_stations_info()

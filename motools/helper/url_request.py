@@ -1,12 +1,8 @@
 """A few helper functions to work with urls."""
 
-import logging
 import urllib.request
 import time
-
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-log = logging.getLogger(__name__)
-logging.getLogger('chardet.charsetprober').setLevel(logging.INFO)
+from motools import logger
 
 
 class NicedUrlRequest():
@@ -43,16 +39,16 @@ class NicedUrlRequest():
             - html_string: the answer html
         """
 
-        log.info("go through request {}".format(request))
+        logger.info("go through request {}".format(request))
 
         remaining_sleep = self.min_wait_time_s - self.elapsed_since_last_request()
-        log.info("remaining_sleep (negative is none needed): {}".format(remaining_sleep))
+        logger.info("remaining_sleep (negative is none needed): {}".format(remaining_sleep))
 
         if remaining_sleep > 0:
-            log.info("sleeping")
+            logger.info("sleeping")
             time.sleep(remaining_sleep)
 
-        log.info("perform request")
+        logger.info("perform request")
         self.update_time()
 
         with urllib.request.urlopen(request) as response:
@@ -63,6 +59,6 @@ class NicedUrlRequest():
 
             html_string = response.read()
 
-        log.info("successful request")
+        logger.info("successful request")
 
         return html_string
