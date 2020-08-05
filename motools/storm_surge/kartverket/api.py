@@ -108,7 +108,11 @@ class KartverketAPI():
         time_bounds_requests = list(date_range(date_start, date_end, max_request_length_days))
         time_bounds_requests.append(date_end)
 
-        for (crrt_request_start, crrt_request_end) in zip(time_bounds_requests[:-1], time_bounds_requests[1:]):
+        dict_station_data = {}
+        dict_station_data["station_id"] = station_id
+
+        # request the data, segment by segment, organizing stuff through a dict
+        for ind, (crrt_request_start, crrt_request_end) in enumerate(zip(time_bounds_requests[:-1], time_bounds_requests[1:])):
             logger.info("request kartverket data over dates {} - {}".format(crrt_request_start, crrt_request_end))
 
             last_segment = (crrt_request_end == date_end)
@@ -126,9 +130,10 @@ class KartverketAPI():
             html_data = self.url_requester.perform_request(request)
             soup = bfls(html_data)
 
-            dict_station_data = {}
-            dict_station_data["station_id"] = station_id
+            dict_segment = {}
+            dict_station_data[ind] = dict_segment
 
+            # each segment has several datasets
             for crrt_dataset in soup.findAll("data"):
                 data_type = crrt_dataset["type"]
                 data_unit = crrt_dataset["unit"]
@@ -136,18 +141,29 @@ class KartverketAPI():
 
                 crrt_key = "{}_{}_{}".format(data_type, data_unit, data_reflevelcode)
 
-                if crrt_key not in dict_station_data:
+                if crrt_key not in dict_segment:
                     logger.info("create entry {} in the current station data dict".format(crrt_key))
-                    dict_station_data[crrt_key] = []
+                    dict_segment[crrt_key] = []
 
+                # individual entries are specific tags; note that the string content of each tag is empty, the data
+                # is in the tag specification itself.
                 for crrt_entry in crrt_dataset:
+                    # effectively ignores the empty string contents, grab data from the tags
                     if type(crrt_entry) is bs4.element.Tag:
                         time = crrt_entry["time"]
                         value = crrt_entry["value"]
                         data_tuple = (datetime.datetime.fromisoformat(time), value)
-                        dict_station_data[crrt_key].append(data_tuple)
+                        dict_segment[crrt_key].append(data_tuple)
 
-                        # TODO: if not last segment, pop last entry to avoid duplicates
+                # to avoid to duplicate the last measurement of each segment, pop once if not last segment
+                if not last_segment:
+                    _ = dict_segment[crrt_key].pop()
+
+        # put the segments together to get data over the whole time
+
+
+        # perform a few sanity checks
+        # TODO: no missing data
 
         return(dict_station_data)
 
@@ -155,10 +171,9 @@ class KartverketAPI():
 
 
 
-
-
 # TODO: check the water level change, and similar corrections
 # TODO: do a loop through all stations
+# TODO: put a bit of simple plotting tools
 
 if __name__ == "__main__":
     logger.info("run an example of query")
