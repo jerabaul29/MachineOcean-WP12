@@ -1,22 +1,51 @@
 """A few helper functions to work with urls."""
 
+import os.path
 import urllib.request
 import time
+from pathlib import Path
 from motools import logger
+
+# NOTE: for now caching is done by hand in the class; consider using established packages such as:
+# http://www.grantjenks.com/docs/diskcache/tutorial.html
+# https://fcache.readthedocs.io/en/stable/
 
 
 class NicedUrlRequest():
     """A simple wrapper to nice url requests.
     Make sure that the caller has to wait for a minimum amount of time between requests."""
 
-    def __init__(self, min_wait_time_s=1):
-        """min_wait_time_s: minimum time interval between requests."""
+    def __init__(self, min_wait_time_s=1, cache_folder="default"):
+        """
+        - min_wait_time_s: minimum time interval between requests.
+        - cache_folder: properties for caching the data. Can be: None (no caching),
+            "default" (use ./NicedUrlRequest/cache folder in home dir), or any custom
+            valid path.
+        """
+
         self.min_wait_time_s = min_wait_time_s
         self.time_last = None
 
         # initialize with the start time -min_wait_time_s, so that immediately ready to use
         self.update_time()
         self.time_last -= self.min_wait_time_s
+
+        # use the right cache folder, make sure valid / terminated both if default
+        # and user specified
+        self.cache_folder = cache_folder
+        if cache_folder == "default":
+            self.cache_folder = str(Path.home()) + "/.NicedUrlRequest/cache"
+
+        if cache_folder is not None:
+            self.cache_folder += "/"
+
+        if self.cache_folder is not None and not os.path.exists(cache_folder):
+            Path(self.cache_folder).mkdir(parents=True)
+
+        logger.info("the cache folder is set to {}".format(self.cache_folder))
+
+        # TODO: make a few controls on the cache folder: nbr of files, size, etc
+        # TODO: add functions for cleaning the cache: all, size_max, age_max, nbr_max
 
     def update_time(self):
         """Update the time corresponding to the last request."""
@@ -26,39 +55,74 @@ class NicedUrlRequest():
         """Time elapsed since the last request."""
         return time.time() - self.time_last
 
-    def perform_request(self, request):
-        """Perform the request request, after making sure we are not too hard on the server.
+    def path_in_cache(self, request):
+        if self.cache_folder is None:
+            return(None)
+        else:
+            return(self.cache_folder + request.replace("/", ""))
+
+    def perform_request(self, request, ignore_cache=False, allow_caching=True):
+        """Perform the request request, after checking if the data are available in cache,
+        and making sure we are not too hard on the server.
 
         If necessary, sleep a bit to avoid overwhelming the server with too many requests.
 
         Input:
             - request: the request to perform
+            - ignore_cache: boolean, if True ignore the cache entry and perform the request
+                anyways, if False uses cached value if available.
+            - allow_caching: boolean, if True allow caching, if False not, default True.
 
         Output:
             - status: the status code
             - html_string: the answer html
         """
 
+        if not isinstance(request, str):
+            raise ValueError("request should be a string, but got {}".format(request))
+
+        if not isinstance(ignore_cache, bool):
+            raise ValueError("ignore_cache should be a bool, but got {}".format(ignore_cache))
+
+        if not isinstance(allow_caching, bool):
+            raise ValueError("allow_caching should be a bool, but got {}".format(allow_caching))
+
         logger.info("go through request {}".format(request))
 
-        remaining_sleep = self.min_wait_time_s - self.elapsed_since_last_request()
-        logger.info("remaining_sleep (negative is none needed): {}".format(remaining_sleep))
+        # TODO: add test for cache and cache cleaning
+        # TODO: add function for testing cache status
+        # TODO: add function to print cache warnings
+        if self.path_in_cache(request) is not None and not ignore_cache and Path(self.path_in_cache(request)).is_file():
+            logger.info("the request is already available in cache, and we are allowed to use it")
 
-        if remaining_sleep > 0:
-            logger.info("sleeping")
-            time.sleep(remaining_sleep)
+            with open(self.path_in_cache(request), 'rb') as fh:
+                html_string = fh.read()
 
-        logger.info("perform request")
-        self.update_time()
+        else:
+            remaining_sleep = self.min_wait_time_s - self.elapsed_since_last_request()
+            logger.info("remaining_sleep (negative is none needed): {}".format(remaining_sleep))
 
-        with urllib.request.urlopen(request) as response:
-            status = response.status
+            if remaining_sleep > 0:
+                logger.info("sleeping")
+                time.sleep(remaining_sleep)
 
-            if not status == 200:
-                raise ValueError("got status {} on request {}".format(response.status, request))
+            logger.info("perform request")
+            self.update_time()
 
-            html_string = response.read()
+            with urllib.request.urlopen(request) as response:
+                status = response.status
 
-        logger.info("successful request")
+                if not status == 200:
+                    raise ValueError("got status {} on request {}".format(response.status, request))
+
+                html_string = response.read()
+
+            logger.info("successful request")
+
+            if self.path_in_cache(request) is not None and allow_caching:
+                logger.info("we are allowed to cache this request; caching")
+
+                with open(self.path_in_cache(request), "wb") as fh:
+                    fh.write(html_string)
 
         return html_string

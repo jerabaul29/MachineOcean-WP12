@@ -77,7 +77,8 @@ class KartverketAPI():
 
         logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
 
-    def get_one_station_over_time_extent(self, station_id, date_start, date_end, max_request_length_days=10):
+    def get_one_station_over_time_extent(self, station_id, date_start, date_end, max_request_length_days=10, time_resolution_minutes=10):
+        # TODO: use a cache folder for putting already queried segments; this way, do not loose all data if something crashes. Should be a part of the "NicedURL" class.
         """Query information for one individual station, between two dates.
 
         Input:
@@ -85,6 +86,8 @@ class KartverketAPI():
             - date_start and date_end: the start and end dates for the data query
             - max_request_length_days: the maximum number of days duration of one individual server
                 request (default 10), to avoid asking for too large data sets at the same time.
+            - time_resolution_minutes: the time resolution of the acquired data; may be either
+                10 or 60 minutes (defined by the API). Default is 10.
 
         Notes:
             - the maximum data size is low enough that the result can be stored in a single variable.
@@ -106,6 +109,7 @@ class KartverketAPI():
             raise ValueError("max_request_length_days must be a positive int, received {}".format(max_request_length_days))
 
         time_bounds_requests = list(date_range(date_start, date_end, max_request_length_days))
+        number_of_segments = len(time_bounds_requests)
         time_bounds_requests.append(date_end)
 
         dict_station_data = {}
@@ -125,7 +129,7 @@ class KartverketAPI():
             utc_time_end = datetime.datetime(crrt_request_end.year, crrt_request_end.month, crrt_request_end.day,
                                                hour=0, minute=0, second=0
                                                ).strftime(strftime_format)
-            request = "https://api.sehavniva.no/tideapi.php?stationcode={}&fromtime={}&totime={}&datatype=obs&refcode=&place=&file=&lang=&interval=10&dst=&tzone=utc&tide_request=stationdata".format(station_id, utc_time_start, utc_time_end)
+            request = "https://api.sehavniva.no/tideapi.php?stationcode={}&fromtime={}&totime={}&datatype=obs&refcode=&place=&file=&lang=&interval={}&dst=&tzone=utc&tide_request=stationdata".format(station_id, utc_time_start, utc_time_end, time_resolution_minutes)
 
             html_data = self.url_requester.perform_request(request)
             soup = bfls(html_data)
@@ -159,13 +163,33 @@ class KartverketAPI():
                 if not last_segment:
                     _ = dict_segment[crrt_key].pop()
 
+        list_entries_ref_segment = list(dict_station_data[0].keys())
+
+        # check that the data are homogeneous across segments
+        for crrt_segment in range(number_of_segments):
+            if list(dict_station_data[crrt_segment].keys()) != list_entries_ref_segment:
+                raise ValueError("incompatible data segments: segment {} has entries {} while first segment has {}]".format(crrt_segment, list(dict_station_data[crrt_segment].keys()), list_entries_ref_segment))
+
         # put the segments together to get data over the whole time
+        for crrt_dataset in list_entries_ref_segment:
+            dict_station_data[crrt_dataset] = []
+            for crrt_segment in range(number_of_segments):
+                dict_station_data[crrt_dataset].extend(dict_station_data[crrt_segment][crrt_dataset])
 
+        # perform a few sanity checks on the final, concatenated data
+        # no missing or duplicated timestamps
+        for crrt_dataset in list_entries_ref_segment:
+            crrt_data = dict_station_data[crrt_dataset]
+            for crrt_ind in range(len(crrt_data)-1):
+                delta_time_next_point = (crrt_data[crrt_ind+1][0] - crrt_data[crrt_ind][0]).seconds
+                if not delta_time_next_point == time_resolution_minutes * 60:
+                    raise ValueError("dataset {} at index {} to {} corresponds to delta time {}s while {}s was expected".format(crrt_dataset, crrt_ind, crrt_ind+1, delta_time_next_point, time_resolution_minutes*60))
 
-        # perform a few sanity checks
-        # TODO: no missing data
+        dict_result = {}
+        for crrt_dataset in list_entries_ref_segment:
+            dict_result[crrt_dataset] = dict_station_data[crrt_dataset]
 
-        return(dict_station_data)
+        return(dict_result)
 
 
 
@@ -179,5 +203,6 @@ if __name__ == "__main__":
     logger.info("run an example of query")
     logger.setLevel(logging.INFO)
     kartveket_api = KartverketAPI(short_test=True)
-    dict_station_data = kartveket_api.get_one_station_over_time_extent("OSL", datetime.date(2020, 1, 1), datetime.date(2020, 1, 25), max_request_length_days=10)
+    dict_station_data = kartveket_api.get_one_station_over_time_extent("OSL", datetime.date(2020, 1, 1), datetime.date(2020, 1, 25))
     pp(dict_station_data)
+    print(dict_station_data.keys())
