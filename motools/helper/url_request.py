@@ -3,6 +3,7 @@
 import os.path
 import urllib.request
 import time
+import datetime
 from pathlib import Path
 from motools import logger
 
@@ -44,8 +45,38 @@ class NicedUrlRequest():
 
         logger.info("the cache folder is set to {}".format(self.cache_folder))
 
+        self.cache_warning()
+
         # TODO: make a few controls on the cache folder: nbr of files, size, etc
         # TODO: add functions for cleaning the cache: all, size_max, age_max, nbr_max
+
+    def cache_warning(self, cache_warning_size=50*(2.0**30), age_warning_days=90):
+        """warns if cache reaches some given metrics.
+
+        - cache_warning_size: the size above which we get a cache warning due to the size. Default
+            is 50 GB.
+        - age_warning_days: the age above which we get a cache warning due to old age file. Default
+            is 90 days.
+        """
+
+        # TODO: can improve on this
+        # TODO: warning if old files
+        # TODO: warning if too many files
+        # TODO: functions for cleaning
+
+        if self.cache_folder is not None:
+            root_of_cache = Path(self.cache_folder)
+            size_cache_content = sum(f.stat().st_size for f in root_of_cache.glob('**/*') if f.is_file())
+
+            if size_cache_content > cache_warning_size:
+                logger.warning("large NicedUrlRequest cache size of {}GB at location {}".format(size_cache_content / 2.0**30, self.cache_folder))
+
+            sorted_files_time = sorted(root_of_cache.glob('**/*'), key = lambda x: x.stat().st_ctime)
+            for crrt_file in sorted_files_time:
+                crrt_age_in_days = (datetime.datetime.fromtimestamp(crrt_file.stat().st_ctime)-datetime.datetime.now()).days
+                if crrt_age_in_days < -age_warning_days:
+                    logger.warning("NicedUrlRequest cache file {} is old: {} days".format(crrt_file, crrt_age_in_days))
+
 
     def update_time(self):
         """Update the time corresponding to the last request."""
@@ -89,7 +120,6 @@ class NicedUrlRequest():
 
         logger.info("go through request {}".format(request))
 
-        # TODO: add test for cache and cache cleaning
         # TODO: add function for testing cache status
         # TODO: add function to print cache warnings
         if self.path_in_cache(request) is not None and not ignore_cache and Path(self.path_in_cache(request)).is_file():

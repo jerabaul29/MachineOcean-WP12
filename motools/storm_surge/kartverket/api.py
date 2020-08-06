@@ -78,7 +78,7 @@ class KartverketAPI():
         logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
 
     def get_one_station_over_time_extent(self, station_id, date_start, date_end, max_request_length_days=10, time_resolution_minutes=10):
-        # TODO: use a cache folder for putting already queried segments; this way, do not loose all data if something crashes. Should be a part of the "NicedURL" class.
+        # TODO: add a number of allowed retries agains the API so that if shortly down still ok; should be part of the NicedURL
         """Query information for one individual station, between two dates.
 
         Input:
