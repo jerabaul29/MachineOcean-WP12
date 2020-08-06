@@ -220,7 +220,7 @@ class KartverketAPI():
                 timedelta_step = datetime.timedelta(minutes=time_resolution_minutes)
                 list_to_insert = list(datetime_range(time_before, time_after, timedelta_step))[1:]
                 list_datapoints_to_insert = [(crrt_time, math.nan) for crrt_time in list_to_insert]
-                crrt_dataset_content = crrt_dataset_content[:crrt_dropout_index+1] + list_datapoints_to_insert + crrt_dataset_content[crrt_dropout_index+1]
+                crrt_dataset_content = crrt_dataset_content[:crrt_dropout_index+1] + list_datapoints_to_insert + crrt_dataset_content[crrt_dropout_index+1:]
 
             dict_station_data[crrt_dataset] = crrt_dataset_content
 
