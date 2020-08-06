@@ -23,16 +23,22 @@ pp = pprint.PrettyPrinter(indent=4).pprint
 
 class KartverketAPI():
     """Query class for the Kartverkets storm surge web API."""
-    def __init__(self, short_test=False):
-        """short_test_ boolean, if only OSL station should be run."""
+    def __init__(self, short_test=False, cache_folder="default"):
+        """Inputs:
+
+        - short_test_ boolean, if only OSL station should be run.
+        - cache_folder: the cache folder to use for the NicedUrlRequest, "default" is home.
+        """
 
         self.short_test = short_test
         logger.info("short_test is {}".format(short_test))
         self.stations_ids = None
-        self.dict_all_stations_info = None
+        self.dict_all_stations_data = None
+
+        self.cache_folder = cache_folder
 
         self.mo_config = moc.Config()
-        self.url_requester = NicedUrlRequest()
+        self.url_requester = NicedUrlRequest(cache_folder=self.cache_folder)
 
         self.fill_value = self.mo_config.getSetting("params", "fillValue")
 
@@ -50,16 +56,16 @@ class KartverketAPI():
         list_tags = soup.find('stationinfo').select('location')
 
         # turn the tags into some dict entries for ordering the information
-        self.dict_all_stations_info = {}
+        self.dict_all_stations_data = {}
 
         for crrt_tag in list_tags:
             dict_tag = crrt_tag.attrs
-            self.dict_all_stations_info[dict_tag["code"]] = dict_tag
+            self.dict_all_stations_data[dict_tag["code"]] = dict_tag
 
         if self.short_test:
             self.stations_ids = ["OSL"]
         else:
-            self.stations_ids = list(self.dict_all_stations_info.keys())
+            self.stations_ids = list(self.dict_all_stations_data.keys())
 
         logger.info("got {} stations: {}".format(len(self.stations_ids), self.stations_ids))
 
@@ -69,16 +75,31 @@ class KartverketAPI():
             html_string = self.url_requester.perform_request(request)
             soup = bfls(html_string, features="lxml")
 
-            self.dict_all_stations_info[crrt_station]["time_bounds"] = {}
+            self.dict_all_stations_data[crrt_station]["time_bounds"] = {}
 
             for crrt_time in ["first", "last"]:
                 crrt_time_str = soup.select("obstime")[0][crrt_time]
                 crrt_datetime = datetime.datetime.fromisoformat(crrt_time_str)
-                self.dict_all_stations_info[crrt_station]["time_bounds"][crrt_time] = crrt_datetime
-                self.dict_all_stations_info[crrt_station]["time_bounds"]["{}_date".format(crrt_time)] = datetime.date(crrt_datetime.year, crrt_datetime.month, crrt_datetime.day)
+                self.dict_all_stations_data[crrt_station]["time_bounds"][crrt_time] = crrt_datetime
+                self.dict_all_stations_data[crrt_station]["time_bounds"]["{}_date".format(crrt_time)] = datetime.date(crrt_datetime.year, crrt_datetime.month, crrt_datetime.day)
 
 
-        logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_info)))
+        logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_data)))
+
+    def get_all_stations_over_time_extent(self, date_start, date_end):
+        """Query information for all stations, between two dates.
+
+        Input:
+            - date_start: the start date
+            - date_end: the end date
+        """
+
+        if not (isinstance(date_start, datetime.date) and isinstance(date_end, datetime.date)):
+            raise ValueError("date_start and date_end must be datetime dates")
+
+        for crrt_station in self.stations_ids:
+            dict_data_station = self.get_one_station_over_time_extent(crrt_station, date_start, date_end)
+            self.dict_all_stations_data[crrt_station]["data"] = dict_data_station
 
     def get_one_station_over_time_extent(self, station_id, date_start, date_end, max_request_length_days=10, time_resolution_minutes=10):
         # TODO: add a number of allowed retries agains the API so that if shortly down still ok; should be part of the NicedURL
@@ -104,9 +125,9 @@ class KartverketAPI():
         if not (isinstance(date_start, datetime.date) and isinstance(date_end, datetime.date)):
             raise ValueError("date_start and date_end must be datetime dates")
 
-        if not (date_start > self.dict_all_stations_info[station_id]["time_bounds"]["first_date"] and \
-                date_end < self.dict_all_stations_info[station_id]["time_bounds"]["last_date"]):
-            raise ValueError("the time interval is not within the station logging span {} to {}".format(self.dict_all_stations_info[station_id]["time_bounds"]["first_date"], self.dict_all_stations_info[station_id]["time_bounds"]["last_date"]))
+        if not (date_start > self.dict_all_stations_data[station_id]["time_bounds"]["first_date"] and \
+                date_end < self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]):
+            raise ValueError("the time interval is not within the station logging span {} to {}".format(self.dict_all_stations_data[station_id]["time_bounds"]["first_date"], self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]))
 
         if not (isinstance(max_request_length_days, int) and max_request_length_days > 0):
             raise ValueError("max_request_length_days must be a positive int, received {}".format(max_request_length_days))
@@ -117,6 +138,8 @@ class KartverketAPI():
 
         dict_station_data = {}
         dict_station_data["station_id"] = station_id
+
+        logger.info("obtaining data about station {}".format(station_id))
 
         # request the data, segment by segment, organizing stuff through a dict
         for ind, (crrt_request_start, crrt_request_end) in enumerate(zip(time_bounds_requests[:-1], time_bounds_requests[1:])):
@@ -135,7 +158,7 @@ class KartverketAPI():
             request = "https://api.sehavniva.no/tideapi.php?stationcode={}&fromtime={}&totime={}&datatype=obs&refcode=&place=&file=&lang=&interval={}&dst=&tzone=utc&tide_request=stationdata".format(station_id, utc_time_start, utc_time_end, time_resolution_minutes)
 
             html_data = self.url_requester.perform_request(request)
-            soup = bfls(html_data)
+            soup = bfls(html_data, features="lxml")
 
             dict_segment = {}
             dict_station_data[ind] = dict_segment
@@ -199,8 +222,8 @@ class KartverketAPI():
 
 
 # TODO: check the water level change, and similar corrections
-# TODO: do a loop through all stations
 # TODO: put a bit of simple plotting tools
+# TODO: add tests inspired from the following if __main__
 
 if __name__ == "__main__":
     logger.info("run an example of query")
