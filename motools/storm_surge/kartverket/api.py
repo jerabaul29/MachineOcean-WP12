@@ -7,12 +7,14 @@ http://api.sehavniva.no/tideapi_protocol.pdf
 import logging
 import datetime
 import pprint
+import math
 from pprint import pformat
 import bs4
 from bs4 import BeautifulSoup as bfls
 import motools.config as moc
 from motools.helper.url_request import NicedUrlRequest
-from motools.helper.date import date_range
+from motools.helper.date import date_range, datetime_range
+from motools.helper.date import find_dropouts
 from motools import logger
 
 pp = pprint.PrettyPrinter(indent=4).pprint
@@ -205,11 +207,27 @@ class KartverketAPI():
         # perform a few sanity checks on the final, concatenated data
         # no missing or duplicated timestamps
         for crrt_dataset in list_entries_ref_segment:
-            crrt_data = dict_station_data[crrt_dataset]
-            for crrt_ind in range(len(crrt_data)-1):
-                delta_time_next_point = (crrt_data[crrt_ind+1][0] - crrt_data[crrt_ind][0]).seconds
-                if not delta_time_next_point == time_resolution_minutes * 60:
-                    raise ValueError("dataset {} at index {} to {} corresponds to delta time {}s while {}s was expected".format(crrt_dataset, crrt_ind, crrt_ind+1, delta_time_next_point, time_resolution_minutes*60))
+            crrt_dataset_content = dict_station_data[crrt_dataset]
+            crrt_datetimes = [crrt_date for (crrt_date, data) in crrt_dataset_content]
+
+            # if necessary, find and insert some NaNs
+            list_locations_need_fill_after = find_dropouts(crrt_datetimes, time_resolution_minutes*60, behavior="warning")
+            list_locations_need_fill_after.reverse()
+
+            for crrt_dropout_index in list_locations_need_fill_after:
+                time_before = crrt_datetimes[crrt_dropout_index]
+                time_after = crrt_datetimes[crrt_dropout_index+1]
+                timedelta_step = datetime.timedelta(minutes=time_resolution_minutes)
+                list_to_insert = list(datetime_range(time_before, time_after, timedelta_step))[1:]
+                list_datapoints_to_insert = [(crrt_time, math.nan) for crrt_time in list_to_insert]
+                crrt_dataset_content = crrt_dataset_content[:crrt_dropout_index+1] + list_datapoints_to_insert + crrt_dataset_content[crrt_dropout_index+1]
+
+            dict_station_data[crrt_dataset] = crrt_dataset_content
+
+            # once insertion is performed, there should be no holes any longer
+            crrt_dataset_content = dict_station_data[crrt_dataset]
+            crrt_datetimes = [crrt_date for (crrt_date, data) in crrt_dataset_content]
+            _ = find_dropouts(crrt_datetimes, time_resolution_minutes*60, behavior="raise_exception")
 
         dict_result = {}
         for crrt_dataset in list_entries_ref_segment:
