@@ -40,7 +40,7 @@ class NicedUrlRequest():
         if cache_folder is not None:
             self.cache_folder += "/"
 
-        if self.cache_folder is not None and not os.path.exists(cache_folder):
+        if self.cache_folder is not None and not os.path.exists(self.cache_folder):
             Path(self.cache_folder).mkdir(parents=True)
 
         logger.info("the cache folder is set to {}".format(self.cache_folder))

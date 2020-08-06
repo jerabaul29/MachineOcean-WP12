@@ -17,6 +17,9 @@ from motools import logger
 
 pp = pprint.PrettyPrinter(indent=4).pprint
 
+# TODO: add tests with a new cache folder to check for 1) working, 2) speed
+# TODO: attempt re-launching in case of errors with the NicedUrlRequest url grabbing failure; should be a part of NicedUrlRequest
+
 
 class KartverketAPI():
     """Query class for the Kartverkets storm surge web API."""
