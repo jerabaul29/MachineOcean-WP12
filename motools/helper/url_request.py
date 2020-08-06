@@ -47,10 +47,9 @@ class NicedUrlRequest():
 
         self.cache_warning()
 
-        # TODO: make a few controls on the cache folder: nbr of files, size, etc
         # TODO: add functions for cleaning the cache: all, size_max, age_max, nbr_max
 
-    def cache_warning(self, cache_warning_size=50*(2.0**30), age_warning_days=90):
+    def cache_warning(self, cache_warning_size=50*(2.0**30), age_warning_days=90, nbr_files_warning=100):
         """warns if cache reaches some given metrics.
 
         - cache_warning_size: the size above which we get a cache warning due to the size. Default
@@ -59,10 +58,7 @@ class NicedUrlRequest():
             is 90 days.
         """
 
-        # TODO: can improve on this
-        # TODO: warning if old files
-        # TODO: warning if too many files
-        # TODO: functions for cleaning
+        cache_warning_met = False
 
         if self.cache_folder is not None:
             root_of_cache = Path(self.cache_folder)
@@ -70,12 +66,22 @@ class NicedUrlRequest():
 
             if size_cache_content > cache_warning_size:
                 logger.warning("large NicedUrlRequest cache size of {}GB at location {}".format(size_cache_content / 2.0**30, self.cache_folder))
+                cache_warning_met = True
 
             sorted_files_time = sorted(root_of_cache.glob('**/*'), key = lambda x: x.stat().st_ctime)
+
             for crrt_file in sorted_files_time:
                 crrt_age_in_days = (datetime.datetime.fromtimestamp(crrt_file.stat().st_ctime)-datetime.datetime.now()).days
                 if crrt_age_in_days < -age_warning_days:
                     logger.warning("NicedUrlRequest cache file {} is old: {} days".format(crrt_file, crrt_age_in_days))
+                    cache_warning_met = True
+
+            if len(sorted_files_time) > nbr_files_warning:
+                logger.warning("large NicedUrlRequest cache number of files: {} in total".format(len(sorted_files_time)))
+                cache_warning_met = True
+
+            if cache_warning_met:
+                logger.warning("you should clean your cache at: {}".format(str(self.cache_folder)))
 
 
     def update_time(self):
@@ -120,8 +126,6 @@ class NicedUrlRequest():
 
         logger.info("go through request {}".format(request))
 
-        # TODO: add function for testing cache status
-        # TODO: add function to print cache warnings
         if self.path_in_cache(request) is not None and not ignore_cache and Path(self.path_in_cache(request)).is_file():
             logger.info("the request is already available in cache, and we are allowed to use it")
 
