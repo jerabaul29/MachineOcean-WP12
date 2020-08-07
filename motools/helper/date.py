@@ -1,9 +1,22 @@
 """Some helpers for working with dates."""
 
 import datetime
+import pytz
 from datetime import timedelta
 from motools import logger
 
+
+def date_to_datetime(date):
+    """Convert a date to the datetime corresponding to the start of the day.
+
+    Input:
+        - date: a datetime.date
+
+    Output:
+        - datetime: a time zone aware datetime.datetime
+    """
+
+    return(pytz.utc.localize(datetime.datetime(date.year, date.month, date.day, 0, 0, 0)))
 
 def datetime_range(start, end, step_timedelta):
     """Yield datetimes in the range [start, end[, with step
@@ -24,7 +37,7 @@ def datetime_range(start, end, step_timedelta):
     if not isinstance(step_timedelta, datetime.timedelta):
         raise ValueError("step_timedelta must be a timedelta, received {} with type {}".format(step_timedelta, type(step_timedelta)))
     if not (end > start):
-        raise ValueError("should have end > start")
+        raise ValueError("should have end > start, got {} - {}".format(start, end))
     if not step_timedelta > datetime.timedelta(seconds=0):
         raise ValueError("should have a position timedelta")
 

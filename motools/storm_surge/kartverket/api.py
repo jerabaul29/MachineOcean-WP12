@@ -6,6 +6,7 @@ http://api.sehavniva.no/tideapi_protocol.pdf
 
 import logging
 import datetime
+import pytz
 import pprint
 import math
 from pprint import pformat
@@ -13,7 +14,7 @@ import bs4
 from bs4 import BeautifulSoup as bfls
 import motools.config as moc
 from motools.helper.url_request import NicedUrlRequest
-from motools.helper.date import date_range, datetime_range
+from motools.helper.date import date_range, datetime_range, date_to_datetime
 from motools.helper.date import find_dropouts
 from motools import logger
 
@@ -127,9 +128,27 @@ class KartverketAPI():
         if not (isinstance(date_start, datetime.date) and isinstance(date_end, datetime.date)):
             raise ValueError("date_start and date_end must be datetime dates")
 
+        if date_start > date_end:
+            raise ValueError("date_start should be after date_end, but got {} and {}".format(date_start, date_end))
+
+        # TODO: instead: check that start<end, warn if not within logging span, if not within loggin span add NaNs at start / end
+        # TODO: add a bit of visualization etc
+        start_padding_missing_timestamps = []
+        end_padding_missing_timestamps = []
+
         if not (date_start > self.dict_all_stations_data[station_id]["time_bounds"]["first_date"] and \
                 date_end < self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]):
-            raise ValueError("the time interval is not within the station logging span {} to {}".format(self.dict_all_stations_data[station_id]["time_bounds"]["first_date"], self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]))
+            logger.warning("the time interval {} to {} for station {} is not within the station logging span {} to {}; padding with NaNs".format(date_start, date_end, station_id, self.dict_all_stations_data[station_id]["time_bounds"]["first_date"], self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]))
+
+            # note: only need to append / prepend the last / first missing time, as the droupout check will fill the holes later
+
+            if date_start < self.dict_all_stations_data[station_id]["time_bounds"]["first_date"]:
+                start_padding_missing_timestamps = [(date_to_datetime(date_start), math.nan)]
+                date_start = self.dict_all_stations_data[station_id]["time_bounds"]["first_date"] + datetime.timedelta(days=1)
+
+            if date_end > self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]:
+                end_padding_missing_timestamps = [(date_to_datetime(date_end), math.nan)]
+                date_end = self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] + datetime.timedelta(days=-1)
 
         if not (isinstance(max_request_length_days, int) and max_request_length_days > 0):
             raise ValueError("max_request_length_days must be a positive int, received {}".format(max_request_length_days))
@@ -143,7 +162,7 @@ class KartverketAPI():
 
         logger.info("obtaining data about station {}".format(station_id))
 
-        # request the data, segment by segment, organizing stuff through a dict
+        # request the data, segment by segment, organizing the results through a dict
         for ind, (crrt_request_start, crrt_request_end) in enumerate(zip(time_bounds_requests[:-1], time_bounds_requests[1:])):
             logger.info("request kartverket data over dates {} - {}".format(crrt_request_start, crrt_request_end))
 
@@ -204,16 +223,19 @@ class KartverketAPI():
             for crrt_segment in range(number_of_segments):
                 dict_station_data[crrt_dataset].extend(dict_station_data[crrt_segment][crrt_dataset])
 
-        # perform a few sanity checks on the final, concatenated data
-        # no missing or duplicated timestamps
+            dict_station_data[crrt_dataset] = start_padding_missing_timestamps + dict_station_data[crrt_dataset] + end_padding_missing_timestamps
+
+        # perform a few sanity checks on the final,check that concatenated data
+        # have no missing or duplicated timestamps
         for crrt_dataset in list_entries_ref_segment:
             crrt_dataset_content = dict_station_data[crrt_dataset]
             crrt_datetimes = [crrt_date for (crrt_date, data) in crrt_dataset_content]
 
-            # if necessary, find and insert some NaNs
+            # find dropouts
             list_locations_need_fill_after = find_dropouts(crrt_datetimes, time_resolution_minutes*60, behavior="warning")
             list_locations_need_fill_after.reverse()
 
+            # fill dropouts with NaN
             for crrt_dropout_index in list_locations_need_fill_after:
                 time_before = crrt_datetimes[crrt_dropout_index]
                 time_after = crrt_datetimes[crrt_dropout_index+1]
