@@ -1,7 +1,6 @@
 """Some helpers for working with dates."""
 
 import datetime
-import pytz
 from datetime import timedelta
 from motools import logger
 
