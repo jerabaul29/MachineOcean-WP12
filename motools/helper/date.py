@@ -16,7 +16,7 @@ def date_to_datetime(date):
         - datetime: a time zone aware datetime.datetime
     """
 
-    return(pytz.utc.localize(datetime.datetime(date.year, date.month, date.day, 0, 0, 0)))
+    return(datetime.datetime(date.year, date.month, date.day, 0, 0, 0, tzinfo=datetime.timezone.utc))
 
 def datetime_range(start, end, step_timedelta):
     """Yield datetimes in the range [start, end[, with step

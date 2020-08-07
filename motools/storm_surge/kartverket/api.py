@@ -6,7 +6,6 @@ http://api.sehavniva.no/tideapi_protocol.pdf
 
 import logging
 import datetime
-import pytz
 import pprint
 import math
 from pprint import pformat
