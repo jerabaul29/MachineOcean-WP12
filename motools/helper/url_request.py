@@ -68,7 +68,7 @@ class NicedUrlRequest():
                 logger.warning("large NicedUrlRequest cache size of {}GB at location {}".format(size_cache_content / 2.0**30, self.cache_folder))
                 cache_warning_met = True
 
-            sorted_files_time = sorted(root_of_cache.glob('**/*'), key = lambda x: x.stat().st_ctime)
+            sorted_files_time = sorted(root_of_cache.glob('**/*'), key=lambda x: x.stat().st_ctime)
 
             for crrt_file in sorted_files_time:
                 crrt_age_in_days = (datetime.datetime.fromtimestamp(crrt_file.stat().st_ctime)-datetime.datetime.now()).days
@@ -98,7 +98,7 @@ class NicedUrlRequest():
         else:
             return(self.cache_folder + request.replace("/", ""))
 
-    def perform_request(self, request, ignore_cache=False, allow_caching=True):
+    def perform_request(self, request, ignore_cache=False, allow_caching=True, max_retries=10):
         """Perform the request request, after checking if the data are available in cache,
         and making sure we are not too hard on the server.
 
@@ -109,6 +109,8 @@ class NicedUrlRequest():
             - ignore_cache: boolean, if True ignore the cache entry and perform the request
                 anyways, if False uses cached value if available.
             - allow_caching: boolean, if True allow caching, if False not, default True.
+            - max_retries: the maximum number of retries. Default is 10. Wait 10 second between
+                consecutive retries.
 
         Output:
             - status: the status code
@@ -143,13 +145,28 @@ class NicedUrlRequest():
             logger.info("perform request")
             self.update_time()
 
-            with urllib.request.urlopen(request) as response:
-                status = response.status
+            number_retries_left = max_retries
+            status = None
 
-                if not status == 200:
-                    raise ValueError("got status {} on request {}".format(response.status, request))
+            while number_retries_left > 0 and status != 200:
+                try:
+                    number_retries_left -= 1
+                    logger.info("attempt to request...")
 
-                html_string = response.read()
+                    with urllib.request.urlopen(request) as response:
+                        status = response.status
+
+                        if not status == 200:
+                            raise ValueError("got status {} on request {}".format(response.status, request))
+
+                        html_string = response.read()
+
+                except Exception as crrt_exception:
+                    logger.warning("Exception {} occured during http request: {}".format(crrt_exception.__class__, str(crrt_exception)))
+                    time.sleep(10.0)
+
+                if number_retries_left == 0 and status != 200:
+                    raise ValueError("url request retries exhausted, but still have an error code: {}".format(status))
 
             logger.info("successful request")
 

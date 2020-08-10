@@ -128,18 +128,22 @@ class KartverketAPI():
             nc4_fh.institution = "IT department, Norwegian Meteorological Institute"
             nc4_fh.Contact = "jeanr@met.no"
 
-            station = nc4_fh.createDimension('station', len(self.stations_ids))
-            time = nc4_fh.createDimension('time', number_of_time_entries)
+            _ = nc4_fh.createDimension('station', len(self.stations_ids))
+            _ = nc4_fh.createDimension('time', number_of_time_entries)
 
             stationid = nc4_fh.createVariable("stationid", str, ('station'))
             latitude = nc4_fh.createVariable('latitude', 'f4', ('station'))
             longitude = nc4_fh.createVariable('longitude', 'f4', ('station'))
             timestamp = nc4_fh.createVariable('timestamp', 'f4', ('time'))
-            observation = nc4_fh.createVariable('observation', 'f8', ('station', 'time'))
-            prediction = nc4_fh.createVariable('prediction', 'f8', ('station', 'time'))
+            observation = nc4_fh.createVariable('observation', 'f4', ('station', 'time'))
+            prediction = nc4_fh.createVariable('prediction', 'f4', ('station', 'time'))
+            timestamp_start = nc4_fh.createVariable('timestamp_start', 'f4', ('station'))
+            timestamp_end = nc4_fh.createVariable('timestamp_end', 'f4', ('station'))
 
             # TODO: understand what the observation, prediction, etc.
             # TODO: document the different fields: unit, name, etc
+
+            # TODO: put start / end dates with measurements
 
             timestamp[:] = time_vector
 
@@ -148,6 +152,8 @@ class KartverketAPI():
                 stationid[ind] = crrt_station
                 latitude[ind] = self.dict_all_stations_data[crrt_station]["latitude"]
                 longitude[ind] = self.dict_all_stations_data[crrt_station]["longitude"]
+                timestamp_start[ind] = self.dict_all_stations_data[crrt_station]["time_bounds"]["first"].timestamp()
+                timestamp_end[ind] = self.dict_all_stations_data[crrt_station]["time_bounds"]["last"].timestamp()
 
                 crrt_data = self.get_one_station_over_time_extent(crrt_station, date_start, date_end, max_request_length_days=10, time_resolution_minutes=time_resolution_minutes)
 
@@ -327,6 +333,19 @@ class KartverketAPI():
             dict_result[crrt_dataset] = dict_station_data[crrt_dataset]
 
         return(dict_result)
+
+
+class VisualizeStormSurgeNetCDF():
+    """Simple visualization of NetCDF files generated through the KartverketAPI class."""
+
+    def __init__(self, path_to_NetCDF):
+        pass
+
+    def visualize_available_times(self):
+        pass
+
+    def visualize_single_station(self):
+        pass
 
 
 
