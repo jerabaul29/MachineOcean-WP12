@@ -5,17 +5,22 @@ from datetime import timedelta
 from motools import logger
 
 
-def date_to_datetime(date):
+def date_to_datetime(date, aware=True):
     """Convert a date to the datetime corresponding to the start of the day.
 
     Input:
         - date: a datetime.date
+        - aware: wether the resulting datetime should be time zone aware (True) or not
+            (False). Default is True.
 
     Output:
         - datetime: a time zone aware datetime.datetime
     """
 
-    return(datetime.datetime(date.year, date.month, date.day, 0, 0, 0, tzinfo=datetime.timezone.utc))
+    if aware:
+        return(datetime.datetime(date.year, date.month, date.day, 0, 0, 0, tzinfo=datetime.timezone.utc))
+    else:
+        return(datetime.datetime(date.year, date.month, date.day, 0, 0, 0))
 
 def datetime_range(start, end, step_timedelta):
     """Yield datetimes in the range [start, end[, with step

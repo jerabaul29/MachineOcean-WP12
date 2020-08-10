@@ -17,6 +17,8 @@ from bs4 import BeautifulSoup as bfls
 import netCDF4 as nc4
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.dates as mdates
 
 import motools.config as moc
 from motools.helper.url_request import NicedUrlRequest
@@ -362,10 +364,47 @@ class VisualizeStormSurgeNetCDF():
 
         with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
             self.stationid = nc4_fh["stationid"][:]
+            self.number_of_stations = len(self.stationid)
             logger.info("station ids are: {}".format(self.stationid))
 
-    def visualize_available_times(self):
-        pass
+    def visualize_available_times(self, date_start=None, date_end=None):
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(18, 5))
+
+        for crrt_station_ind in range(len(self.stationid)):
+            if crrt_station_ind % 2 == 0:
+                crrt_color = "b"
+            else:
+                crrt_color = 'k'
+
+            logger.info("plot available times for station nbr {}".format(self.stationid[crrt_station_ind]))
+
+            with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
+                crrt_min_time = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_start"][crrt_station_ind].data))
+                crrt_max_time = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_end"][crrt_station_ind].data))
+
+            logger.info("{} to {}".format(crrt_min_time, crrt_max_time))
+
+            plt.plot([crrt_min_time, crrt_max_time], [crrt_station_ind, crrt_station_ind], label="{}".format(self.stationid[crrt_station_ind]), linewidth=3.5, color=crrt_color)
+
+            plt.text(datetime.datetime(1980, 1, 1), crrt_station_ind, "#{:02}: {}-{:02} to {}-{:02}".format(crrt_station_ind, crrt_min_time.year, crrt_min_time.month, crrt_max_time.year, crrt_max_time.month), color=crrt_color)
+
+            if date_start is not None and date_end is not None:
+                if (date_start > crrt_min_time and date_end < crrt_max_time):
+                    plt.text(datetime.datetime(1985, 4, 1), crrt_station_ind, "Y", color="g")
+                else:
+                    plt.text(datetime.datetime(1985, 4, 1), crrt_station_ind, "N", color="r")
+
+        if date_start is not None and date_end is not None:
+            plt.axvline(date_start, linewidth=2.5, color="orange")
+            plt.axvline(date_end, linewidth=2.5, color="orange")
+
+        mpl_min_time = mdates.date2num(datetime.datetime(1980, 1, 1))
+        mpl_max_time = mdates.date2num(datetime.datetime(2020, 12, 1))
+
+        plt.xlim([mpl_min_time, mpl_max_time])
+        plt.ylabel("station number")
+
+        plt.show()
 
     def visualize_single_station(self):
         pass
@@ -379,13 +418,17 @@ class VisualizeStormSurgeNetCDF():
 # TODO: add tests inspired from the following if __main__
 
 if __name__ == "__main__":
-    logger.info("run an example of query")
     logger.setLevel(logging.INFO)
-    kartverket_api = KartverketAPI(short_test=False)
 
     date_start = datetime.date(2006, 12, 12)
-    date_end = datetime.date(2007, 1, 3)
+    date_end = datetime.date(2014, 1, 3)
 
-    kartverket_api.generate_netcdf_dataset(date_start, date_end)
+    if False:
+        kartverket_api = KartverketAPI(short_test=False)
 
-    kartverket_nc4_visualizer = VisualizeStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
+        kartverket_api.generate_netcdf_dataset(date_start, date_end)
+
+    if True:
+
+        kartverket_nc4_visualizer = VisualizeStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
+        kartverket_nc4_visualizer.visualize_available_times(date_to_datetime(date_start, False), date_to_datetime(date_end, False))
