@@ -10,10 +10,13 @@ import datetime
 import pprint
 import math
 from pprint import pformat
+
 import bs4
 from bs4 import BeautifulSoup as bfls
+
 import netCDF4 as nc4
 import numpy as np
+import matplotlib.pyplot as plt
 
 import motools.config as moc
 from motools.helper.url_request import NicedUrlRequest
@@ -182,7 +185,6 @@ class KartverketAPI():
             self.dict_all_stations_data[crrt_station]["data"] = dict_data_station
 
     def get_one_station_over_time_extent(self, station_id, date_start, date_end, max_request_length_days=10, time_resolution_minutes=10):
-        # TODO: add a number of allowed retries agains the API so that if shortly down still ok; should be part of the NicedURL
         """Query information for one individual station, between two dates.
 
         Input:
@@ -208,10 +210,9 @@ class KartverketAPI():
         if date_start > date_end:
             raise ValueError("date_start should be after date_end, but got {} and {}".format(date_start, date_end))
 
-        # TODO: instead: check that start<end, warn if not within logging span, if not within loggin span add NaNs at start / end
-        # TODO: add a bit of visualization etc
         start_padding_missing_timestamps = []
         end_padding_missing_timestamps = []
+        request_needed = True
 
         if not (date_start > self.dict_all_stations_data[station_id]["time_bounds"]["first_date"] and \
                 date_end < self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]):
@@ -227,10 +228,17 @@ class KartverketAPI():
                 end_padding_missing_timestamps = [(date_to_datetime(date_end), math.nan)]
                 date_end = self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] + datetime.timedelta(days=-1)
 
+            if date_start > self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] or date_end < self.dict_all_stations_data[station_id]["time_bounds"]["first_date"]:
+                request_needed = False
+
         if not (isinstance(max_request_length_days, int) and max_request_length_days > 0):
             raise ValueError("max_request_length_days must be a positive int, received {}".format(max_request_length_days))
 
-        time_bounds_requests = list(date_range(date_start, date_end, max_request_length_days))
+        if request_needed:
+            time_bounds_requests = list(date_range(date_start, date_end, max_request_length_days))
+        else:
+            time_bounds_requests = []
+
         number_of_segments = len(time_bounds_requests)
         time_bounds_requests.append(date_end)
 
@@ -287,7 +295,14 @@ class KartverketAPI():
                 if not last_segment:
                     _ = dict_segment[crrt_key].pop()
 
-        list_entries_ref_segment = list(dict_station_data[0].keys())
+        if request_needed:
+            list_entries_ref_segment = list(dict_station_data[0].keys())
+        else:
+            logger.warning("Using default list of entries, as no data over the time range specified! This may break if data are not homogeneous over stations!")
+            dict_station_data[0] = {}
+            dict_station_data[0]["observation_cm_CD"] = []
+            dict_station_data[0]["prediction_cm_CD"] = []
+            list_entries_ref_segment = list(dict_station_data[0].keys())
 
         # check that the data are homogeneous across segments
         for crrt_segment in range(number_of_segments):
@@ -339,7 +354,15 @@ class VisualizeStormSurgeNetCDF():
     """Simple visualization of NetCDF files generated through the KartverketAPI class."""
 
     def __init__(self, path_to_NetCDF):
-        pass
+        self.path_to_NetCDF = path_to_NetCDF
+        self.explore_information()
+
+    def explore_information(self):
+        """print a few high-level informations about the netcdf data"""
+
+        with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
+            self.stationid = nc4_fh["stationid"][:]
+            logger.info("station ids are: {}".format(self.stationid))
 
     def visualize_available_times(self):
         pass
@@ -358,7 +381,11 @@ class VisualizeStormSurgeNetCDF():
 if __name__ == "__main__":
     logger.info("run an example of query")
     logger.setLevel(logging.INFO)
-    kartveket_api = KartverketAPI(short_test=True)
-    dict_station_data = kartveket_api.get_one_station_over_time_extent("OSL", datetime.date(2020, 1, 1), datetime.date(2020, 1, 25))
-    pp(dict_station_data)
-    print(dict_station_data.keys())
+    kartverket_api = KartverketAPI(short_test=False)
+
+    date_start = datetime.date(2006, 12, 12)
+    date_end = datetime.date(2007, 1, 3)
+
+    kartverket_api.generate_netcdf_dataset(date_start, date_end)
+
+    kartverket_nc4_visualizer = VisualizeStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
