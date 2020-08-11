@@ -15,10 +15,15 @@ import bs4
 from bs4 import BeautifulSoup as bfls
 
 import netCDF4 as nc4
+
 import numpy as np
+
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.dates as mdates
+
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 import motools.config as moc
 from motools.helper.url_request import NicedUrlRequest
@@ -363,36 +368,73 @@ class VisualizeStormSurgeNetCDF():
         """print a few high-level informations about the netcdf data"""
 
         with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
-            self.stationid = nc4_fh["stationid"][:]
-            self.number_of_stations = len(self.stationid)
-            logger.info("station ids are: {}".format(self.stationid))
+            self.station_ids = nc4_fh["stationid"][:]
+            print(self.station_ids)
+            self.number_of_stations = len(self.station_ids)
+
+        self.dict_metadata = self.get_dict_stations_metadata()
+
+    def get_dict_stations_metadata(self):
+        dict_stations_metadata = {}
+
+        with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
+            for crrt_ind in range(self.number_of_stations):
+                crrt_station_id = nc4_fh["stationid"][crrt_ind]
+                crrt_lat = nc4_fh["latitude"][crrt_ind]
+                crrt_lon = nc4_fh["longitude"][crrt_ind]
+                datetime_start = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_start"][crrt_ind].data))
+                datetime_end = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_end"][crrt_ind].data))
+
+                crrt_dict_metadata = {}
+                crrt_dict_metadata["station_index"] = crrt_ind
+                crrt_dict_metadata["nc4_dump_index"] = crrt_ind
+                crrt_dict_metadata["latitude"] = crrt_lat
+                crrt_dict_metadata["longitude"] = crrt_lon
+                crrt_dict_metadata["datetime_start"] = datetime_start
+                crrt_dict_metadata["datetime_end"] = datetime_end
+
+                dict_stations_metadata[crrt_station_id] = crrt_dict_metadata
+
+        return dict_stations_metadata
 
     def visualize_available_times(self, date_start=None, date_end=None):
+        """Visualize the time over which data are available for each station.
+        This is based on the specific API request about data availability.
+
+        Inputs:
+            - date_start, date_end: dates over which we want to check if data
+                are available. If None (default), ignore time bounds for the
+                and do no availability check.
+
+        Output:
+            Displays a plot showing the stations, the time extent over which
+                data are available, and, if provided, the time bounds date_start
+                and date_end."""
+
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(18, 5))
 
-        for crrt_station_ind in range(len(self.stationid)):
-            if crrt_station_ind % 2 == 0:
+        for crrt_station_id in self.station_ids:
+            crrt_station_index = self.dict_metadata[crrt_station_id]["station_index"]
+
+            if crrt_station_index % 2 == 0:
                 crrt_color = "b"
             else:
                 crrt_color = 'k'
 
-            logger.info("plot available times for station nbr {}".format(self.stationid[crrt_station_ind]))
-
-            with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
-                crrt_min_time = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_start"][crrt_station_ind].data))
-                crrt_max_time = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_end"][crrt_station_ind].data))
+            crrt_min_time = self.dict_metadata[crrt_station_id]["datetime_start"]
+            crrt_max_time = self.dict_metadata[crrt_station_id]["datetime_end"]
 
             logger.info("{} to {}".format(crrt_min_time, crrt_max_time))
 
-            plt.plot([crrt_min_time, crrt_max_time], [crrt_station_ind, crrt_station_ind], label="{}".format(self.stationid[crrt_station_ind]), linewidth=3.5, color=crrt_color)
+            plt.plot([crrt_min_time, crrt_max_time], [crrt_station_index, crrt_station_index], linewidth=3.5, color=crrt_color)
 
-            plt.text(datetime.datetime(1980, 1, 1), crrt_station_ind, "#{:02}: {}-{:02} to {}-{:02}".format(crrt_station_ind, crrt_min_time.year, crrt_min_time.month, crrt_max_time.year, crrt_max_time.month), color=crrt_color)
+            plt.text(datetime.datetime(1980, 1, 1), crrt_station_index, "#{:02}{} {}.{:02}-{}.{:02}".format(crrt_station_index, crrt_station_id, crrt_min_time.year, crrt_min_time.month, crrt_max_time.year, crrt_max_time.month), color=crrt_color)
 
             if date_start is not None and date_end is not None:
                 if (date_start > crrt_min_time and date_end < crrt_max_time):
-                    plt.text(datetime.datetime(1985, 4, 1), crrt_station_ind, "Y", color="g")
+                    plt.text(datetime.datetime(1985, 6, 1), crrt_station_index, "Y", color="g")
                 else:
-                    plt.text(datetime.datetime(1985, 4, 1), crrt_station_ind, "N", color="r")
+                    plt.text(datetime.datetime(1985, 6, 1), crrt_station_index, "N", color="r")
 
         if date_start is not None and date_end is not None:
             plt.axvline(date_start, linewidth=2.5, color="orange")
@@ -406,8 +448,63 @@ class VisualizeStormSurgeNetCDF():
 
         plt.show()
 
-    def visualize_single_station(self):
+    def visualize_station_positions(self):
+        """Visualize the position of the stations."""
+
+        # The data to plot are defined in lat/lon coordinate system, so PlateCarree()
+        # is the appropriate choice of coordinate reference system:
+        data_crs = ccrs.PlateCarree()
+
+        # the map projection properties.
+        proj = ccrs.LambertConformal(central_latitude=65.0,
+                                    central_longitude=15.0,
+                                    standard_parallels=(52.5, 75.0))
+
+        plt.figure(figsize=(15, 18))
+        ax = plt.axes(projection=proj)
+
+        ax.add_feature(cfeature.LAND) #If I comment this => all ok, but I need
+        ax.add_feature(cfeature.LAKES)
+        ax.add_feature(cfeature.RIVERS)
+        ax.set_global()
+        ax.coastlines()
+
+        list_lats = []
+        list_lons = []
+        list_names = []
+
+        for crrt_station_id in self.station_ids:
+            list_lats.append(self.dict_metadata[crrt_station_id]["latitude"])
+            list_lons.append(self.dict_metadata[crrt_station_id]["longitude"])
+            list_names.append(crrt_station_id)
+
+        ax.scatter(list_lons, list_lats, transform=ccrs.PlateCarree(), color="red")
+
+        transform = ccrs.PlateCarree()._as_mpl_transform(ax)
+        for crrt_station_index in range(self.number_of_stations):
+            ax.annotate("#{}{}".format(crrt_station_index, list_names[crrt_station_index]), xy=(list_lons[crrt_station_index], list_lats[crrt_station_index]),
+                        xycoords=transform,
+                        xytext=(5, 5), textcoords="offset points", color="red"
+                        )
+
+        ax.set_extent([-3.5, 32.5, 50.5, 82.5])
+
+        plt.show()
+
+    def visualize_single_station(self, datetime_start, datetime_end):
+        # show all data fields
+        # make sure NaNs are treated correctly
         pass
+
+    def get_data(station_id, datetime_start, datetime_end):
+        # do a reverse search for station_id, getting the corresponding ind
+
+        # get the data over the query range
+
+        pass
+
+
+
 
 
 
@@ -416,6 +513,7 @@ class VisualizeStormSurgeNetCDF():
 # TODO: check the water level change, and similar corrections
 # TODO: put a bit of simple plotting tools
 # TODO: add tests inspired from the following if __main__
+# TODO: check against similar plots from the lustre data
 
 if __name__ == "__main__":
     logger.setLevel(logging.INFO)
@@ -429,6 +527,6 @@ if __name__ == "__main__":
         kartverket_api.generate_netcdf_dataset(date_start, date_end)
 
     if True:
-
         kartverket_nc4_visualizer = VisualizeStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
         kartverket_nc4_visualizer.visualize_available_times(date_to_datetime(date_start, False), date_to_datetime(date_end, False))
+        kartverket_nc4_visualizer.visualize_station_positions()
