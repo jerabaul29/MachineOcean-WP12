@@ -48,3 +48,18 @@ kartverket_nc4 = AccessStormSurgeNetCDF()
 timestamps, observation, prediction = kartverket_nc4.get_data("BGO", datetime_start_data, datetime_end_data, path_to_netCDF=path_dump)
 datetime_timestamps = [datetime.datetime.fromtimestamp(crrt_timestamp) for crrt_timestamp in timestamps]
 ```
+
+## About the data
+
+The data for observation and precition correspond to what is explained p.11/16 of the api documentation:
+
+"
+datatype (optional, default=all):
+TAB = tide table (high tide and low tide)
+PRE = predictions = astronomic tide
+OBS = observations = measured water level
+ALL = both predictions, observations, weathereffect and forecast will be
+returned.
+"
+
+So the observation is the value actually measured, while the prediction is the component coming from the astronomic tide. All units are in cm.
