@@ -121,7 +121,7 @@ class KartverketAPI():
             raise ValueError("date_start and date_end must be datetime dates")
 
         if date_start > date_end:
-            raise ValueError("date_start should be after date_end, but got {} and {}".format(date_start, date_end))
+            raise ValueError("date_start should be before date_end, but got {} and {}".format(date_start, date_end))
 
         timedelta_step = datetime.timedelta(minutes=time_resolution_minutes)
         # need to append by hand the last timestamp, as the range is by default [[
@@ -145,11 +145,11 @@ class KartverketAPI():
             stationid = nc4_fh.createVariable("stationid", str, ('station'))
             latitude = nc4_fh.createVariable('latitude', 'f4', ('station'))
             longitude = nc4_fh.createVariable('longitude', 'f4', ('station'))
-            timestamp = nc4_fh.createVariable('timestamp', 'f4', ('time'))
+            timestamp = nc4_fh.createVariable('timestamp', 'i8', ('time'))
             observation = nc4_fh.createVariable('observation', 'f4', ('station', 'time'))
             prediction = nc4_fh.createVariable('prediction', 'f4', ('station', 'time'))
-            timestamp_start = nc4_fh.createVariable('timestamp_start', 'f4', ('station'))
-            timestamp_end = nc4_fh.createVariable('timestamp_end', 'f4', ('station'))
+            timestamp_start = nc4_fh.createVariable('timestamp_start', 'i8', ('station'))
+            timestamp_end = nc4_fh.createVariable('timestamp_end', 'i8', ('station'))
 
             # TODO: understand what the observation, prediction, etc.
             # TODO: document the different fields: unit, name, etc
@@ -359,8 +359,17 @@ class KartverketAPI():
 class AccessStormSurgeNetCDF():
     """Simple access and visualization of NetCDF files generated through the KartverketAPI class."""
 
-    def __init__(self, path_to_NetCDF):
-        self.path_to_NetCDF = path_to_NetCDF
+    def __init__(self, path_to_NetCDF=None):
+        """Accessing and plotting storm surge data saved in a netcdf4 file by the KartverkerAPI
+        class.
+
+        Input:
+            - path_to_NetCDF: the path to the data. If None (default), use the default path."""
+        if path_to_NetCDF is None:
+            self.path_to_NetCDF = os.getcwd() + "/data_kartverket_stormsurge.nc4"
+        else:
+            self.path_to_NetCDF = path_to_NetCDF
+
         self.explore_information()
 
     def explore_information(self):
@@ -382,8 +391,8 @@ class AccessStormSurgeNetCDF():
                 crrt_station_id = nc4_fh["stationid"][crrt_ind]
                 crrt_lat = nc4_fh["latitude"][crrt_ind]
                 crrt_lon = nc4_fh["longitude"][crrt_ind]
-                datetime_start = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_start"][crrt_ind].data))
-                datetime_end = datetime.datetime.fromtimestamp(float(nc4_fh["timestamp_end"][crrt_ind].data))
+                datetime_start = datetime.datetime.fromtimestamp((nc4_fh["timestamp_start"][crrt_ind].data))
+                datetime_end = datetime.datetime.fromtimestamp((nc4_fh["timestamp_end"][crrt_ind].data))
 
                 crrt_dict_metadata = {}
                 crrt_dict_metadata["station_index"] = crrt_ind
@@ -512,9 +521,6 @@ class AccessStormSurgeNetCDF():
         plt.ylim([-1000.0, 1000.0])
 
         plt.show()
-
-
-        pass
 
     def get_data(self, station_id, datetime_start, datetime_end):
         """Get the data contained in the netcdf4 dump about stations_id, that
