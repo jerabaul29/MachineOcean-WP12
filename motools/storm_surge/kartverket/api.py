@@ -1,4 +1,4 @@
-"""A class to query the storm surge data from kartverkets web API.
+"""Classes to query the storm surge data from kartverkets web API.
 
 The full API documentation is at:
 http://api.sehavniva.no/tideapi_protocol.pdf
@@ -17,6 +17,8 @@ from bs4 import BeautifulSoup as bfls
 import netCDF4 as nc4
 
 import numpy as np
+
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import matplotlib
@@ -157,7 +159,7 @@ class KartverketAPI():
             timestamp[:] = time_vector
 
             # fill with the stations data
-            for ind, crrt_station in enumerate(self.stations_ids):
+            for ind, crrt_station in enumerate(tqdm(self.stations_ids)):
                 stationid[ind] = crrt_station
                 latitude[ind] = self.dict_all_stations_data[crrt_station]["latitude"]
                 longitude[ind] = self.dict_all_stations_data[crrt_station]["longitude"]
@@ -254,7 +256,7 @@ class KartverketAPI():
         logger.info("obtaining data about station {}".format(station_id))
 
         # request the data, segment by segment, organizing the results through a dict
-        for ind, (crrt_request_start, crrt_request_end) in enumerate(zip(time_bounds_requests[:-1], time_bounds_requests[1:])):
+        for ind, (crrt_request_start, crrt_request_end) in enumerate(tqdm(zip(time_bounds_requests[:-1], time_bounds_requests[1:]), total=len(time_bounds_requests)-1)):
             logger.info("request kartverket data over dates {} - {}".format(crrt_request_start, crrt_request_end))
 
             last_segment = (crrt_request_end == date_end)
