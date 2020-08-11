@@ -17,6 +17,9 @@ def date_to_datetime(date, aware=True):
         - datetime: a time zone aware datetime.datetime
     """
 
+    if not isinstance(date, datetime.date):
+        raise ValueError("Expected type {}, got {}".format(datetime.date, type(date)))
+
     if aware:
         return(datetime.datetime(date.year, date.month, date.day, 0, 0, 0, tzinfo=datetime.timezone.utc))
     else:

@@ -97,3 +97,32 @@ def index_ranges_within_bounds(x_coords, y_coords, x_bounds, y_bounds, comp_epsi
     return(index_valid_range_0[0][0], index_valid_range_0[0][-1] + 1,
            index_valid_range_1[0][0], index_valid_range_1[0][-1] + 1
            )
+
+
+def find_index_first_greater_or_equal(np_array, value):
+    """Find the index of the first value of np_array that is
+    greater or equal than value.
+
+    Input:
+        - np_array: numpy array in which to look, should
+            be monotonic.
+        - value: the value to use as a reference for
+            comparison.
+
+    Output:
+        - the index of the first entry that is greater
+            or equal to value.
+    If no valid value, raise an error.
+    """
+
+    if not isinstance(np_array, np.ndarray):
+        raise ValueError("np_array must be a numpy array")
+
+    check_strict_monotonic(np_array)
+
+    if np_array[-1] < value:
+        raise ValueError("no entry greater or equal than the asked value")
+
+    first_index = np.argmax(np_array >= value)
+
+    return first_index

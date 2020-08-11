@@ -31,6 +31,7 @@ from motools.helper.date import date_range, datetime_range, date_to_datetime
 from motools.helper.date import find_dropouts
 from motools import logger
 from motools.helper import bash
+from motools.helper import arrays as moa
 
 pp = pprint.PrettyPrinter(indent=4).pprint
 
@@ -42,9 +43,8 @@ class KartverketAPI():
     """Query class for the Kartverkets storm surge web API."""
     def __init__(self, short_test=False, cache_folder="default"):
         """Inputs:
-
-        - short_test_ boolean, if only OSL station should be run.
-        - cache_folder: the cache folder to use for the NicedUrlRequest, "default" is home.
+            - short_test_ boolean, if only OSL station should be run.
+            - cache_folder: the cache folder to use for the NicedUrlRequest, "default" is home.
         """
 
         self.short_test = short_test
@@ -100,7 +100,6 @@ class KartverketAPI():
                 self.dict_all_stations_data[crrt_station]["time_bounds"][crrt_time] = crrt_datetime
                 self.dict_all_stations_data[crrt_station]["time_bounds"]["{}_date".format(crrt_time)] = datetime.date(crrt_datetime.year, crrt_datetime.month, crrt_datetime.day)
 
-
         logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_data)))
 
     def generate_netcdf_dataset(self, date_start, date_end, path=None, time_resolution_minutes=10):
@@ -111,6 +110,8 @@ class KartverketAPI():
             - date_end: the end of the dataset.
             - path: full path (including dir and filename). If None, use the cwd
                 and name "data_kartverket_stormsurge.nc4"
+            - time_resolution_minutes: the resolution of the data queried, should be
+            either 10 or 60. Default: 10.
         """
 
         if path is None:
@@ -123,9 +124,9 @@ class KartverketAPI():
             raise ValueError("date_start should be after date_end, but got {} and {}".format(date_start, date_end))
 
         timedelta_step = datetime.timedelta(minutes=time_resolution_minutes)
+        # need to append by hand the last timestamp, as the range is by default [[
         time_vector = np.array([time.timestamp() for time in datetime_range(date_to_datetime(date_start), date_to_datetime(date_end), timedelta_step)] + [date_to_datetime(date_end).timestamp()])
         number_of_time_entries = time_vector.shape[0]
-        print(time_vector)
 
         with nc4.Dataset(path, "w", format="NETCDF4") as nc4_fh:
             nc4_fh.set_auto_mask(False)
@@ -153,8 +154,6 @@ class KartverketAPI():
             # TODO: understand what the observation, prediction, etc.
             # TODO: document the different fields: unit, name, etc
 
-            # TODO: put start / end dates with measurements
-
             timestamp[:] = time_vector
 
             # fill with the stations data
@@ -172,8 +171,6 @@ class KartverketAPI():
 
                 prediction[ind, :] = array_prediction
                 observation[ind, :] = array_observation
-
-                # TODO: clean etc, add more info
 
 
     def get_all_stations_over_time_extent(self, date_start, date_end):
@@ -219,6 +216,8 @@ class KartverketAPI():
 
         start_padding_missing_timestamps = []
         end_padding_missing_timestamps = []
+
+        # whether a request is needed at all, i.e., whether there is data at all available over the time range.
         request_needed = True
 
         if not (date_start > self.dict_all_stations_data[station_id]["time_bounds"]["first_date"] and \
@@ -357,8 +356,8 @@ class KartverketAPI():
         return(dict_result)
 
 
-class VisualizeStormSurgeNetCDF():
-    """Simple visualization of NetCDF files generated through the KartverketAPI class."""
+class AccessStormSurgeNetCDF():
+    """Simple access and visualization of NetCDF files generated through the KartverketAPI class."""
 
     def __init__(self, path_to_NetCDF):
         self.path_to_NetCDF = path_to_NetCDF
@@ -369,8 +368,9 @@ class VisualizeStormSurgeNetCDF():
 
         with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
             self.station_ids = nc4_fh["stationid"][:]
-            print(self.station_ids)
             self.number_of_stations = len(self.station_ids)
+            self.first_timestamp = int(nc4_fh["timestamp"][0])
+            self.last_timestamp = int(nc4_fh["timestamp"][-1])
 
         self.dict_metadata = self.get_dict_stations_metadata()
 
@@ -491,22 +491,78 @@ class VisualizeStormSurgeNetCDF():
 
         plt.show()
 
-    def visualize_single_station(self, datetime_start, datetime_end):
-        # show all data fields
-        # make sure NaNs are treated correctly
+    def visualize_single_station(self, station_id, datetime_start, datetime_end):
+        """Show the data for both observation and prediction for a specific station over
+        a specific time interval.
+
+        Input:
+            - station_id: the station to look at
+            - datetime_start: the start of the plot
+            - datetime_end: the end of the plot
+        """
+
+        timestamps, observation, prediction = self.get_data(station_id, datetime_start, datetime_end)
+        datetime_timestamps = [datetime.datetime.fromtimestamp(crrt_datetime) for crrt_datetime in timestamps]
+
+        plt.figure()
+
+        plt.plot(datetime_timestamps, observation)
+        plt.plot(datetime_timestamps, prediction)
+
+        plt.ylim([-1000.0, 1000.0])
+
+        plt.show()
+
+
         pass
 
-    def get_data(station_id, datetime_start, datetime_end):
-        # do a reverse search for station_id, getting the corresponding ind
+    def get_data(self, station_id, datetime_start, datetime_end):
+        """Get the data contained in the netcdf4 dump about stations_id, that
+        is between times datetime_start and datetime_end.
 
-        # get the data over the query range
+        Input:
+            - sation_id: the station ID, for example 'OSL'
+            - datetime_start, datetime_end: the limits of the extracted data.
 
-        pass
+        Output:
+            - data_timestamps: the timestamps of the data.
+            - data_observation: the observation.
+            - data_prediction: the prediction.
+        """
 
+        if not station_id in self.station_ids:
+            raise ValueError("{} is not a known station (list: {})".format(station_id, self.stations_ids))
 
+        if not isinstance(datetime_start, datetime.datetime):
+            raise ValueError("datetime_start should be a datetime.datetime, got {}".format(type(datetime_start)))
 
+        if not isinstance(datetime_end, datetime.datetime):
+            raise ValueError("datetime_end should be a datetime.datetime, got {}".format(type(datetime_end)))
 
+        if not datetime_start < datetime_end:
+            raise ValueError("need datetime_start < datetime_end, but got {} and {}".format(datetime_start, datetime_end))
 
+        if not (datetime_start > datetime.datetime.fromtimestamp(self.first_timestamp) and datetime_end < datetime.datetime.fromtimestamp(self.last_timestamp)):
+            raise ValueError("requested data in range {} to {}, but nc4 file covers only {} to {}".format(datetime_start, datetime_end, datetime.datetime.fromtimestamp(self.first_timestamp), datetime.datetime.fromtimestamp(self.last_timestamp)))
+
+        nc4_index = self.dict_metadata[station_id]["station_index"]
+
+        timestamp_start = datetime_start.timestamp()
+        timestamp_end = datetime_end.timestamp()
+
+        with nc4.Dataset(self.path_to_NetCDF, "r", format="NETCDF4") as nc4_fh:
+            data_timestamp_full = nc4_fh["timestamp"][:]
+            data_observation_full = nc4_fh["observation"][nc4_index][:]
+            data_prediction_full = nc4_fh["prediction"][nc4_index][:]
+
+        first_index = moa.find_index_first_greater_or_equal(data_timestamp_full, timestamp_start)
+        last_index = moa.find_index_first_greater_or_equal(data_timestamp_full, timestamp_end) + 1
+
+        data_timestamp = data_timestamp_full[first_index:last_index]
+        data_observation = data_observation_full[first_index:last_index]
+        data_prediction = data_prediction_full[first_index:last_index]
+
+        return(data_timestamp, data_observation, data_prediction)
 
 
 
@@ -514,6 +570,7 @@ class VisualizeStormSurgeNetCDF():
 # TODO: put a bit of simple plotting tools
 # TODO: add tests inspired from the following if __main__
 # TODO: check against similar plots from the lustre data
+# TODO: check on a few examples that things 'look good'
 
 if __name__ == "__main__":
     logger.setLevel(logging.INFO)
@@ -527,6 +584,12 @@ if __name__ == "__main__":
         kartverket_api.generate_netcdf_dataset(date_start, date_end)
 
     if True:
-        kartverket_nc4_visualizer = VisualizeStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
-        kartverket_nc4_visualizer.visualize_available_times(date_to_datetime(date_start, False), date_to_datetime(date_end, False))
-        kartverket_nc4_visualizer.visualize_station_positions()
+        kartverket_nc4 = AccessStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
+        # kartverket_nc4.visualize_available_times(date_to_datetime(date_start, False), date_to_datetime(date_end, False))
+        # kartverket_nc4.visualize_station_positions()
+
+        datetime_start_data = datetime.datetime(2006, 12, 15, 0, 0, 0)
+        datetime_end_data = datetime.datetime(2006, 12, 30, 0, 0, 0)
+
+        # timestamps, observation, prediction = kartverket_nc4.get_data("OSL", datetime_start_data, datetime_end_data)
+        kartverket_nc4.visualize_single_station("OSL", datetime_start_data, datetime_end_data)
