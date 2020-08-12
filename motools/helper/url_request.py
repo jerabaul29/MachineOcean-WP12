@@ -16,12 +16,19 @@ class NicedUrlRequest():
     """A simple wrapper to nice url requests.
     Make sure that the caller has to wait for a minimum amount of time between requests."""
 
-    def __init__(self, min_wait_time_s=1, cache_folder="default"):
+    def __init__(self, min_wait_time_s=1, cache_folder="default", cache_organizer=None):
         """
         - min_wait_time_s: minimum time interval between requests.
         - cache_folder: properties for caching the data. Can be: None (no caching),
             "default" (use ./NicedUrlRequest/cache folder in home dir), or any custom
             valid path.
+        - cache_organizer: a function that takes in an URL request and returns the
+            folder, in the cache_folder, where the request should be stored. This
+            way, allows to keep a balanced cache folder structure, and to avoid having
+            very many files in one folder. Default is None, i.e. everything is dumped
+            into the cache_folder, which may result in many files in a single folder.
+            For balancing properties, this function should be usercase specific, and
+            it is let to the user to implement.
         """
 
         self.min_wait_time_s = min_wait_time_s
@@ -42,6 +49,8 @@ class NicedUrlRequest():
 
         if self.cache_folder is not None and not os.path.exists(self.cache_folder):
             Path(self.cache_folder).mkdir(parents=True)
+
+        self.cache_organizer = cache_organizer
 
         logger.info("the cache folder is set to {}".format(self.cache_folder))
 
@@ -81,7 +90,7 @@ class NicedUrlRequest():
                 cache_warning_met = True
 
             if cache_warning_met:
-                logger.warning("you should clean your cache at: {}".format(str(self.cache_folder)))
+                logger.warning("you should maybe clean your cache at: {}".format(str(self.cache_folder)))
 
 
     def update_time(self):
@@ -96,7 +105,16 @@ class NicedUrlRequest():
         if self.cache_folder is None:
             return(None)
         else:
-            return(self.cache_folder + request.replace("/", ""))
+            if self.cache_organizer is None:
+                return(self.cache_folder + request.replace("/", ""))
+            else:
+                path_within_cache = self.cache_organizer(request) + "/"
+
+                if not os.path.exists(self.cache_folder + path_within_cache):
+                    Path(self.cache_folder + path_within_cache).mkdir(parents=True)
+
+                return(self.cache_folder + path_within_cache + request.replace("/", ""))
+
 
     def perform_request(self, request, ignore_cache=False, allow_caching=True, max_retries=10):
         """Perform the request request, after checking if the data are available in cache,
