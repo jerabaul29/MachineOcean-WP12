@@ -158,7 +158,7 @@ class KartverketAPI():
             timestamp[:] = time_vector
 
             # fill with the stations data
-            for ind, crrt_station in enumerate(tqdm(self.stations_ids)):
+            for ind, crrt_station in enumerate(tqdm(self.stations_ids), desc="station"):
                 stationid[ind] = crrt_station
                 latitude[ind] = self.dict_all_stations_data[crrt_station]["latitude"]
                 longitude[ind] = self.dict_all_stations_data[crrt_station]["longitude"]
@@ -255,7 +255,7 @@ class KartverketAPI():
         logger.info("obtaining data about station {}".format(station_id))
 
         # request the data, segment by segment, organizing the results through a dict
-        for ind, (crrt_request_start, crrt_request_end) in enumerate(tqdm(zip(time_bounds_requests[:-1], time_bounds_requests[1:]), total=len(time_bounds_requests)-1)):
+        for ind, (crrt_request_start, crrt_request_end) in enumerate(tqdm(zip(time_bounds_requests[:-1], time_bounds_requests[1:]), total=len(time_bounds_requests)-1, desct="segment", position=0, leave=True)):
             logger.info("request kartverket data over dates {} - {}".format(crrt_request_start, crrt_request_end))
 
             last_segment = (crrt_request_end == date_end)
@@ -302,19 +302,36 @@ class KartverketAPI():
                 if not last_segment:
                     _ = dict_segment[crrt_key].pop()
 
-        if request_needed:
-            list_entries_ref_segment = list(dict_station_data[0].keys())
-        else:
+
+        list_entries_ref_segment = ["observation_cm_CD", "prediction_cm_CD"]
+
+        if not request_needed:
             logger.warning("Using default list of entries, as no data over the time range specified! This may break if data are not homogeneous over stations!")
             dict_station_data[0] = {}
             dict_station_data[0]["observation_cm_CD"] = []
             dict_station_data[0]["prediction_cm_CD"] = []
-            list_entries_ref_segment = list(dict_station_data[0].keys())
 
         # check that the data are homogeneous across segments
         for crrt_segment in range(number_of_segments):
-            if list(dict_station_data[crrt_segment].keys()) != list_entries_ref_segment:
-                raise ValueError("incompatible data segments: segment {} has entries {} while first segment has {}]".format(crrt_segment, list(dict_station_data[crrt_segment].keys()), list_entries_ref_segment))
+            list_crrt_entries = list(dict_station_data[crrt_segment].keys())
+
+            if list_crrt_entries != list_entries_ref_segment:
+                logger.warning("incompatible data segments: segment {} has entries {} while first segment has {}]".format(crrt_segment, list_crrt_entries, list_entries_ref_segment))
+
+                unknown_entries = list(set(list_crrt_entries) - set(list_entries_ref_segment))
+
+                if len(unknown_entries) != 0:
+                    logger.warning("there are some unknown entries: {} not in the reference segment; removing".format(unknown_entries))
+                    for crrt_unknown_entry in unknown_entries:
+                        del dict_station_data[crrt_segment][crrt_unknown_entry]
+
+                missing_entries = list(set(list_entries_ref_segment) - set(list_crrt_entries))
+
+                if len(missing_entries) != 0:
+                    logger.warning("there are some missing entries: {} in reference segment but not current segment; adding dummy".format(missing_entries))
+                    for crrt_missing_entry in missing_entries:
+                        dict_station_data[crrt_segment][crrt_missing_entry] = []
+
 
         # put the segments together to get data over the whole time
         for crrt_dataset in list_entries_ref_segment:
