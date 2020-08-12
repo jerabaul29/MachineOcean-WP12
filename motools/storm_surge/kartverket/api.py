@@ -36,6 +36,14 @@ from motools.helper import arrays as moa
 pp = pprint.PrettyPrinter(indent=4).pprint
 
 
+def cache_organizer(request):
+    # check that it is a data request; these are the ones we want to classify
+    if ("fromtime" in request) and ("totime" in request) and ("obs" in request):
+        return("{}/{}/{}/".format(request[49:52], request[62:66], request[67:69]))
+    else:
+        return("")
+
+
 class KartverketAPI():
     """Query class for the Kartverkets storm surge web API."""
     def __init__(self, short_test=False, cache_folder="default"):
@@ -52,7 +60,7 @@ class KartverketAPI():
         self.cache_folder = cache_folder
 
         self.mo_config = moc.Config()
-        self.url_requester = NicedUrlRequest(cache_folder=self.cache_folder)
+        self.url_requester = NicedUrlRequest(cache_folder=self.cache_folder, cache_organizer=cache_organizer)
 
         self.fill_value = self.mo_config.getSetting("params", "fillValue")
 
