@@ -21,7 +21,6 @@ import numpy as np
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt
-import matplotlib
 import matplotlib.dates as mdates
 
 import cartopy.crs as ccrs
@@ -32,13 +31,9 @@ from motools.helper.url_request import NicedUrlRequest
 from motools.helper.date import date_range, datetime_range, date_to_datetime
 from motools.helper.date import find_dropouts
 from motools import logger
-from motools.helper import bash
 from motools.helper import arrays as moa
 
 pp = pprint.PrettyPrinter(indent=4).pprint
-
-# TODO: add tests with a new cache folder to check for 1) working, 2) speed
-# TODO: attempt re-launching in case of errors with the NicedUrlRequest url grabbing failure; should be a part of NicedUrlRequest
 
 
 class KartverketAPI():
@@ -152,7 +147,6 @@ class KartverketAPI():
             timestamp_start = nc4_fh.createVariable('timestamp_start', 'i8', ('station'))
             timestamp_end = nc4_fh.createVariable('timestamp_end', 'i8', ('station'))
 
-            # TODO: understand what the observation, prediction, etc.
             # TODO: document the different fields: unit, name, etc
 
             timestamp[:] = time_vector
@@ -166,6 +160,20 @@ class KartverketAPI():
                 timestamp_end[ind] = self.dict_all_stations_data[crrt_station]["time_bounds"]["last"].timestamp()
 
                 crrt_data = self.get_one_station_over_time_extent(crrt_station, date_start, date_end, max_request_length_days=10, time_resolution_minutes=time_resolution_minutes)
+
+                # check that the timestamp bases all agree
+                for crrt_entry in crrt_data.keys():
+                    crrt_timestamps = np.array([crrt_datetime.timestamp() for (crrt_datetime, data) in crrt_data[crrt_entry]])
+                    if not np.all(np.isclose(crrt_timestamps, time_vector)):
+                        logger.warning("print crrt_timestamps")
+                        logger.warning(crrt_timestamps[0])
+                        logger.warning(crrt_timestamps)
+                        logger.warning(crrt_timestamps[-1])
+                        logger.warning("print time_vector")
+                        logger.warning(time_vector[0])
+                        logger.warning(time_vector)
+                        logger.warning(time_vector[-1])
+                        raise ValueError("mismatch in timesteps between the pre-determined time vector {} and the one effectively obtained {} processing station {}".format(time_vector, crrt_timestamps, crrt_station))
 
                 array_prediction = np.nan_to_num(np.array([data for (time, data) in crrt_data["prediction_cm_CD"]]), nan=self.fill_value)
                 array_observation = np.nan_to_num(np.array([data for (time, data) in crrt_data["observation_cm_CD"]]), nan=self.fill_value)
@@ -218,6 +226,9 @@ class KartverketAPI():
         start_padding_missing_timestamps = []
         end_padding_missing_timestamps = []
 
+        true_date_start = date_start
+        true_date_end = date_end
+
         # whether a request is needed at all, i.e., whether there is data at all available over the time range.
         request_needed = True
 
@@ -236,6 +247,8 @@ class KartverketAPI():
                 date_end = self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] + datetime.timedelta(days=-1)
 
             if date_start > self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] or date_end < self.dict_all_stations_data[station_id]["time_bounds"]["first_date"]:
+                start_padding_missing_timestamps = [(date_to_datetime(true_date_start), math.nan)]
+                end_padding_missing_timestamps = [(date_to_datetime(true_date_end), math.nan)]
                 request_needed = False
 
         if not (isinstance(max_request_length_days, int) and max_request_length_days > 0):
@@ -371,6 +384,12 @@ class KartverketAPI():
         for crrt_dataset in list_entries_ref_segment:
             dict_result[crrt_dataset] = dict_station_data[crrt_dataset]
 
+        # check that all time bases are identical
+        time_base_ref = [crrt_datetime for (crrt_datetime, data) in dict_result[list_entries_ref_segment[0]]]
+        for crrt_dataset in list_entries_ref_segment:
+            crrt_time_base = [crrt_datetime for (crrt_datetime, data) in dict_result[crrt_dataset]]
+            assert crrt_time_base == time_base_ref
+
         return(dict_result)
 
 
@@ -480,7 +499,7 @@ class AccessStormSurgeNetCDF():
 
         # The data to plot are defined in lat/lon coordinate system, so PlateCarree()
         # is the appropriate choice of coordinate reference system:
-        data_crs = ccrs.PlateCarree()
+        _ = ccrs.PlateCarree()
 
         # the map projection properties.
         proj = ccrs.LambertConformal(central_latitude=65.0,
@@ -589,13 +608,6 @@ class AccessStormSurgeNetCDF():
         return(data_timestamp, data_observation, data_prediction)
 
 
-
-# TODO: check the water level change, and similar corrections
-# TODO: put a bit of simple plotting tools
-# TODO: add tests inspired from the following if __main__
-# TODO: check against similar plots from the lustre data
-# TODO: check on a few examples that things 'look good'
-
 if __name__ == "__main__":
     logger.setLevel(logging.INFO)
 
@@ -609,7 +621,7 @@ if __name__ == "__main__":
 
     if True:
         kartverket_nc4 = AccessStormSurgeNetCDF("./data_kartverket_stormsurge.nc4")
-        # kartverket_nc4.visualize_available_times(date_to_datetime(date_start, False), date_to_datetime(date_end, False))
+        kartverket_nc4.visualize_available_times(date_to_datetime(date_start, False), date_to_datetime(date_end, False))
         # kartverket_nc4.visualize_station_positions()
 
         datetime_start_data = datetime.datetime(2006, 12, 15, 0, 0, 0)

@@ -112,14 +112,18 @@ def find_dropouts(list_datetimes, delta_time_s, behavior="raise_exception"):
     list_dropout_after_indexes = []
 
     for crrt_ind in range(len(list_datetimes)-1):
-        delta_time_next_point = (list_datetimes[crrt_ind+1] - list_datetimes[crrt_ind]).seconds
+        delta_time_next_point = int((list_datetimes[crrt_ind+1] - list_datetimes[crrt_ind]).total_seconds())
 
-        if delta_time_next_point != delta_time_s:
+        if delta_time_next_point > delta_time_s:
             list_dropout_after_indexes.append(crrt_ind)
 
             if behavior == "warning":
                 logger.warning("detected dropout")
             else:
+                logger.warning("detected dropout in a raise_exception context!")
                 raise ValueError("detected dropout")
+
+        elif delta_time_next_point < delta_time_s:
+            raise ValueError("detected negative dropout! Dates {} and {} are separated by less than the expected {} seconds! abort, the array was not strictly increasing datetimes!".format(list_datetimes[crrt_ind], list_datetimes[crrt_ind+1], delta_time_s))
 
     return list_dropout_after_indexes
