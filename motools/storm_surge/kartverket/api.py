@@ -107,7 +107,7 @@ class KartverketAPI():
 
         logger.info("content of the stations dict: \n {}".format(pformat(self.dict_all_stations_data)))
 
-    def generate_netcdf_dataset(self, date_start, date_end, path=None, time_resolution_minutes=10):
+    def generate_netcdf_dataset(self, date_start, date_end, path=None, time_resolution_minutes=10, list_stations=None):
         """Generate a netCDF dataset for the storm surge data.
 
         Input:
@@ -117,6 +117,8 @@ class KartverketAPI():
                 and name "data_kartverket_stormsurge.nc4"
             - time_resolution_minutes: the resolution of the data queried, should be
             either 10 or 60. Default: 10.
+            - list_stations: the stations to generate data about. Default is None, i.e.
+            all stations available. Can also specify a list of stations ids, ex: ["OSL", "BGO"]
         """
 
         if path is None:
@@ -128,9 +130,13 @@ class KartverketAPI():
         if date_start > date_end:
             raise ValueError("date_start should be before date_end, but got {} and {}".format(date_start, date_end))
 
+        self.old_stations_ids = self.stations_ids
+        if list_stations is not None:
+            self.stations_ids = list_stations
+
         timedelta_step = datetime.timedelta(minutes=time_resolution_minutes)
         # need to append by hand the last timestamp, as the range is by default [[
-        time_vector = np.array([time.timestamp() for time in datetime_range(date_to_datetime(date_start), date_to_datetime(date_end), timedelta_step)] + [date_to_datetime(date_end).timestamp()])
+        time_vector = np.array([time.timestamp() for time in datetime_range(date_to_datetime(date_start + datetime.timedelta(days=-1)), date_to_datetime(date_end + datetime.timedelta(days=+1)), timedelta_step)] + [date_to_datetime(date_end + datetime.timedelta(days=+1)).timestamp()])
         number_of_time_entries = time_vector.shape[0]
 
         with nc4.Dataset(path, "w", format="NETCDF4") as nc4_fh:
@@ -174,13 +180,13 @@ class KartverketAPI():
                     crrt_timestamps = np.array([crrt_datetime.timestamp() for (crrt_datetime, data) in crrt_data[crrt_entry]])
                     if not np.all(np.isclose(crrt_timestamps, time_vector)):
                         logger.warning("print crrt_timestamps")
-                        logger.warning(crrt_timestamps[0])
-                        logger.warning(crrt_timestamps)
-                        logger.warning(crrt_timestamps[-1])
+                        logger.warning(crrt_timestamps[:10])
+                        logger.warning(crrt_timestamps[-10:])
+                        logger.warning(len(crrt_timestamps))
                         logger.warning("print time_vector")
-                        logger.warning(time_vector[0])
-                        logger.warning(time_vector)
-                        logger.warning(time_vector[-1])
+                        logger.warning(time_vector[:10])
+                        logger.warning(time_vector[-10:])
+                        logger.warning(len(time_vector))
                         raise ValueError("mismatch in timesteps between the pre-determined time vector {} and the one effectively obtained {} processing station {}".format(time_vector, crrt_timestamps, crrt_station))
 
                 array_prediction = np.nan_to_num(np.array([data for (time, data) in crrt_data["prediction_cm_CD"]]), nan=self.fill_value)
@@ -188,6 +194,8 @@ class KartverketAPI():
 
                 prediction[ind, :] = array_prediction
                 observation[ind, :] = array_observation
+
+        self.stations_ids = self.old_stations_ids
 
 
     def get_all_stations_over_time_extent(self, date_start, date_end):
@@ -247,17 +255,18 @@ class KartverketAPI():
             # note: only need to append / prepend the last / first missing time, as the droupout check will fill the holes later
 
             if date_start < self.dict_all_stations_data[station_id]["time_bounds"]["first_date"]:
-                start_padding_missing_timestamps = [(date_to_datetime(date_start), math.nan)]
                 date_start = self.dict_all_stations_data[station_id]["time_bounds"]["first_date"] + datetime.timedelta(days=1)
 
             if date_end > self.dict_all_stations_data[station_id]["time_bounds"]["last_date"]:
-                end_padding_missing_timestamps = [(date_to_datetime(date_end), math.nan)]
                 date_end = self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] + datetime.timedelta(days=-1)
 
             if date_start > self.dict_all_stations_data[station_id]["time_bounds"]["last_date"] or date_end < self.dict_all_stations_data[station_id]["time_bounds"]["first_date"]:
-                start_padding_missing_timestamps = [(date_to_datetime(true_date_start), math.nan)]
-                end_padding_missing_timestamps = [(date_to_datetime(true_date_end), math.nan)]
                 request_needed = False
+
+        # sometimes, a station returns data over a some time, but only observation or prediction are availalbe, which may disturb the time bases of the different fiels;
+        # to make sure homogeneous, always append / prepend dummy dates from day before to day after.
+        start_padding_missing_timestamps = [(date_to_datetime(true_date_start) + datetime.timedelta(days=-1), math.nan)]
+        end_padding_missing_timestamps = [(date_to_datetime(true_date_end) + datetime.timedelta(days=+1), math.nan)]
 
         if not (isinstance(max_request_length_days, int) and max_request_length_days > 0):
             raise ValueError("max_request_length_days must be a positive int, received {}".format(max_request_length_days))
@@ -353,6 +362,8 @@ class KartverketAPI():
                     for crrt_missing_entry in missing_entries:
                         dict_station_data[crrt_segment][crrt_missing_entry] = []
 
+            assert sorted(list_entries_ref_segment) == sorted(list(dict_station_data[crrt_segment].keys()))
+
 
         # put the segments together to get data over the whole time
         for crrt_dataset in list_entries_ref_segment:
@@ -396,7 +407,16 @@ class KartverketAPI():
         time_base_ref = [crrt_datetime for (crrt_datetime, data) in dict_result[list_entries_ref_segment[0]]]
         for crrt_dataset in list_entries_ref_segment:
             crrt_time_base = [crrt_datetime for (crrt_datetime, data) in dict_result[crrt_dataset]]
-            assert crrt_time_base == time_base_ref
+            if not crrt_time_base == time_base_ref:
+                logger.warning("some prints of crrt_time_base")
+                logger.warning(crrt_time_base[:10])
+                logger.warning(crrt_time_base[-10:])
+                logger.warning(len(crrt_time_base))
+                logger.warning("some prints of time_base_ref")
+                logger.warning(time_base_ref[:10])
+                logger.warning(time_base_ref[-10:])
+                logger.warning(len(time_base_ref))
+                raise ValueError("Mismatch between the current time base, and the reference time baseQ")
 
         return(dict_result)
 
