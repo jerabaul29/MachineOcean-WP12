@@ -5,11 +5,13 @@ http://api.sehavniva.no/tideapi_protocol.pdf
 """
 
 import os
+from pathlib import Path
 import logging
 import datetime
 import pprint
 import math
 from pprint import pformat
+import random
 
 import bs4
 from bs4 import BeautifulSoup as bfls
@@ -657,3 +659,141 @@ if __name__ == "__main__":
 
         # timestamps, observation, prediction = kartverket_nc4.get_data("OSL", datetime_start_data, datetime_end_data)
         kartverket_nc4.visualize_single_station("OSL", datetime_start_data, datetime_end_data)
+
+
+class NetCDFTester():
+    """A class to perform checks of the correctness of the netCDF data dump a posteriori."""
+
+    def __init__(self, path_to_ordered_cache, path_to_netCDF, limit_datetimes):
+        """
+        Input:
+            - path_to_ordered_cache: the path to the ordered cache with the html requests that
+                were used to build the netCDF database. For example: /home/jrmet/.NicedUrlRequest/cache/
+            - path_to_netCDF: the path to the netCDF database.
+            - limit_dates: the limit dates over which testing is allowed.
+        """
+
+        self.path_to_ordered_cache = path_to_ordered_cache
+        self.path_to_netCDF = path_to_netCDF
+        self.limit_datetimes = limit_datetimes
+
+        if not os.path.exists(self.path_to_ordered_cache):
+            raise ValueError("path to ordered cache {} does not exist".format(self.path_to_ordered_cache))
+
+        if not self.path_to_ordered_cache[-1] == "/":
+            raise ValueError("please terminate path_to_ordered_cache with /")
+
+        if not Path(self.path_to_netCDF).is_file():
+            raise ValueError("path to netCDF dump {} does not exist".format(self.path_to_netCDF))
+
+        self.kartverket_nc4 = AccessStormSurgeNetCDF(self.path_to_netCDF)
+
+    def perform_random_tests(self, n_tests=1000):
+        """
+        Input:
+            - n_tests: the number of tests to perform at random.
+        """
+
+        list_data_folders = [x[0] for x in os.walk(self.path_to_ordered_cache) if len(x[0]) == 11 + len(self.path_to_ordered_cache)]
+
+        for test_index in tqdm(range(n_tests)):
+            crrt_folder = random.choice(list_data_folders)
+            crrt_station = crrt_folder[-11:-8]
+
+            logger.info(crrt_station)
+
+            list_files = os.listdir(crrt_folder)
+            crrt_path = "{}/{}".format(crrt_folder, random.choice(list_files))
+
+            crrt_start_datetime_pathname = datetime.datetime.fromisoformat(crrt_path[-139:-120])
+            logger.info(crrt_start_datetime_pathname)
+
+            # parse the current file
+            with open(crrt_path, 'rb') as fh:
+                html_string = fh.read()
+            soup = bfls(html_string, features="lxml")
+
+            dict_segment = {}
+
+            # each segment has several datasets
+            for crrt_dataset in soup.findAll("data"):
+                data_type = crrt_dataset["type"]
+                data_unit = crrt_dataset["unit"]
+                data_reflevelcode = crrt_dataset["reflevelcode"]
+
+                crrt_key = "{}_{}_{}".format(data_type, data_unit, data_reflevelcode)
+
+                if crrt_key not in dict_segment:
+                    logger.info("create entry {} in the current station data dict".format(crrt_key))
+                    dict_segment[crrt_key] = []
+
+                # individual entries are specific tags; note that the string content of each tag is empty, the data
+                # is in the tag specification itself.
+                for crrt_entry in crrt_dataset:
+                    # effectively ignores the empty string contents, grab data from the tags
+                    if type(crrt_entry) is bs4.element.Tag:
+                        time = crrt_entry["time"]
+                        value = float(crrt_entry["value"])
+                        data_tuple = (datetime.datetime.fromisoformat(time), value)
+                        dict_segment[crrt_key].append(data_tuple)
+
+            if list(dict_segment.keys()) != []:
+                crrt_key = random.choice(list(dict_segment.keys()))
+
+                crrt_data_tuple = random.choice(dict_segment[crrt_key])
+
+                crrt_datetime = crrt_data_tuple[0]
+
+                if crrt_datetime.replace(tzinfo=None) > self.limit_datetimes[0] and crrt_datetime.replace(tzinfo=None) < self.limit_datetimes[1]:
+                    crrt_timestamp = crrt_datetime.timestamp()
+                    crrt_data = crrt_data_tuple[1]
+
+                    logger.info("chose crrt tuple {} with key {} from station {} from file {}".format(crrt_data_tuple, crrt_key, crrt_station, crrt_path))
+                    logger.info("corresponding to timestamp: {}".format(crrt_timestamp))
+
+                    datetime_start_data = crrt_datetime.replace(tzinfo=None)
+                    datetime_end_data = (crrt_datetime + datetime.timedelta(minutes=1)).replace(tzinfo=None)
+
+                    timestamps, observation, prediction = self.kartverket_nc4.get_data(crrt_station, datetime_start_data, datetime_end_data)
+
+                    timestamp_nc4 = timestamps[0]
+                    observation_nc4 = observation[0]
+                    prediction_nc4 = prediction[0]
+
+                    logger.info("the netcdf4 datafile provided station {} timestamp {} observation {} prediction {}:".format(crrt_station, timestamp_nc4, observation_nc4, prediction_nc4))
+
+                    assert timestamp_nc4 == crrt_timestamp
+
+                    if "observation" in crrt_key:
+                        logger.info("compare obs {} from request to {} from nc4".format(crrt_data, observation_nc4))
+                        assert abs(observation_nc4 - crrt_data) < 1e-2
+                    elif "prediction" in crrt_key:
+                        logger.info("compare pred {} from request to {} from nc4".format(crrt_data, prediction_nc4))
+                        logger.info(prediction_nc4)
+                        logger.info(crrt_data)
+                        assert abs(prediction_nc4 - crrt_data) < 1e-2
+                    else:
+                        raise ValueError("unknown key {}".format(crrt_key))
+
+                else:
+                    logger.warning("skipping test with datetime {} outside range".format(crrt_datetime))
+            else:
+                datetime_start_data = crrt_start_datetime_pathname.replace(tzinfo=None)
+                datetime_end_data = (datetime_start_data + datetime.timedelta(minutes=1)).replace(tzinfo=None)
+
+                if datetime_start_data > self.limit_datetimes[0] and datetime_start_data < self.limit_datetimes[1]:
+
+                    timestamps, observation, prediction = self.kartverket_nc4.get_data(crrt_station, datetime_start_data, datetime_end_data)
+
+                    timestamp_nc4 = timestamps[0]
+                    observation_nc4 = observation[0]
+                    prediction_nc4 = prediction[0]
+
+                    logger.info("this entry is from a missing html message")
+                    logger.info("the netcdf4 datafile provided station {} timestamp {} observation {} prediction {}:".format(crrt_station, timestamp_nc4, observation_nc4, prediction_nc4))
+
+                    assert observation_nc4 > 1e8, ("observation: {}".format(observation_nc4))
+                    assert prediction_nc4 > 1e8, ("predictino: {}".format(prediction_nc4))
+
+                else:
+                    logger.warning("skipping test with datetime {} outside range".format(datetime_start_data))
